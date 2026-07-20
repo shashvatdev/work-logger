@@ -13,93 +13,102 @@ class AdminEmployeesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    final employees =
-        ref.watch(allUsersProvider).where((u) => !u.isAdmin).toList();
+    final usersAsync = ref.watch(allUsersProvider);
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        // ── Header ──────────────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return usersAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(child: Text(e.toString())),
+      data: (allUsers) {
+        final employees = allUsers.where((u) => !u.isAdmin).toList();
+
+        return CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // ── Header ──────────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Team',
-                          style: Theme.of(context).textTheme.displayLarge,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${employees.length} members',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Team',
+                              style: Theme.of(context).textTheme.displayLarge,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${employees.length} members',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
                                     color: AppColors.textSecondary(context),
                                   ),
+                            ),
+                          ],
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            ref.read(currentUserProvider.notifier).state = null;
+                          },
+                          child: InitialsAvatar(
+                              name: user?.name ?? 'Admin', radius: 20),
                         ),
                       ],
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        ref.read(currentUserProvider.notifier).state = null;
-                      },
-                      child: InitialsAvatar(
-                          name: user?.name ?? 'Admin', radius: 20),
-                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    _TodayStatusSummary(employees: employees),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                _TodayStatusSummary(employees: employees),
-              ],
-            ),
-          ),
-        ),
-
-        // ── Section label ────────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-            child: Text(
-              'ALL MEMBERS',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontSize: 11,
-                    letterSpacing: 0.8,
-                    color: AppColors.textSecondary(context),
-                  ),
-            ),
-          ),
-        ),
-
-        // ── Employees list ───────────────────────────────────────────────────
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          sliver: SliverToBoxAdapter(
-            child: SurfaceCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  for (int i = 0; i < employees.length; i++) ...[
-                    _EmployeeRow(employee: employees[i]),
-                    if (i < employees.length - 1)
-                      const AppDivider(indent: 72),
-                  ],
-                ],
               ),
             ),
-          ),
-        ),
 
-        const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
-      ],
+            // ── Section label ────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+                child: Text(
+                  'ALL MEMBERS',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontSize: 11,
+                        letterSpacing: 0.8,
+                        color: AppColors.textSecondary(context),
+                      ),
+                ),
+              ),
+            ),
+
+            // ── Employees list ───────────────────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              sliver: SliverToBoxAdapter(
+                child: SurfaceCard(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < employees.length; i++) ...[
+                        _EmployeeRow(employee: employees[i]),
+                        if (i < employees.length - 1)
+                          const AppDivider(indent: 72),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+          ],
+        );
+      },
     );
   }
 }
@@ -112,7 +121,9 @@ class _TodayStatusSummary extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     int updatedCount = 0;
     for (final e in employees) {
-      if (ref.watch(employeeTodayStatusProvider(e.id))) updatedCount++;
+      if (ref.watch(employeeTodayStatusProvider(e.id)).valueOrNull == true) {
+        updatedCount++;
+      }
     }
     final notUpdated = employees.length - updatedCount;
 
@@ -179,7 +190,8 @@ class _EmployeeRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final updated = ref.watch(employeeTodayStatusProvider(employee.id));
+    final statusAsync = ref.watch(employeeTodayStatusProvider(employee.id));
+    final updated = statusAsync.valueOrNull ?? false;
 
     return ListTile(
       contentPadding:
@@ -189,17 +201,25 @@ class _EmployeeRow extends ConsumerWidget {
           style: Theme.of(context).textTheme.bodyLarge),
       subtitle: Row(
         children: [
-          StatusDot(active: updated, size: 7),
-          const SizedBox(width: 6),
-          Text(
-            updated ? 'Updated Today' : 'No Update',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: updated
-                      ? AppColors.logDot
-                      : AppColors.textSecondary(context),
-                  fontSize: 12,
-                ),
-          ),
+          if (statusAsync.isLoading)
+            const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else ...[
+            StatusDot(active: updated, size: 7),
+            const SizedBox(width: 6),
+            Text(
+              updated ? 'Updated Today' : 'No Update',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: updated
+                        ? AppColors.logDot
+                        : AppColors.textSecondary(context),
+                    fontSize: 12,
+                  ),
+            ),
+          ],
         ],
       ),
       trailing: Icon(Icons.chevron_right_rounded,

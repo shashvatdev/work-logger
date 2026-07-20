@@ -8,6 +8,8 @@ import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/utils/date_extensions.dart';
 import '../../data/models/models.dart';
+import '../../data/repositories/log_repository.dart';
+import '../../core/api/api_exception.dart';
 
 class LogScreen extends ConsumerStatefulWidget {
   final DateTime date;
@@ -20,34 +22,50 @@ class LogScreen extends ConsumerStatefulWidget {
 class _LogScreenState extends ConsumerState<LogScreen> {
   final _uuid = const Uuid();
   late List<_EntryEditor> _editors;
+  bool _loading = true;
   bool _saving = false;
   bool _saved = false;
+  DailyLogModel? _existingLog;
+  final List<String> _deletedEntryIds = [];
 
   bool get _isEditable => widget.date.isToday;
 
   @override
   void initState() {
     super.initState();
-    _initEditors();
+    _loadLog();
   }
 
-  void _initEditors() {
+  Future<void> _loadLog() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
-
+    
+    final repo = LogRepository();
     final dateStr = DateFormat('yyyy-MM-dd').format(widget.date);
-    final logId = '${user.id}_$dateStr';
-    final existingLog = ref.read(allLogsProvider)[logId];
-
-    if (existingLog != null && existingLog.entries.isNotEmpty) {
-      _editors = existingLog.entries
-          .map((e) => _EntryEditor(
-                entry: e,
-                controller: TextEditingController(text: e.description),
-              ))
-          .toList();
-    } else {
-      _editors = [_newEditor(user.id, logId)];
+    
+    final result = widget.date.isToday
+      ? await repo.getTodayLog()
+      : await repo.getLogByDate(dateStr);
+      
+    if (mounted) {
+      if (result is ApiSuccess) {
+        _existingLog = result.data;
+      }
+      
+      if (_existingLog != null && _existingLog!.entries.isNotEmpty) {
+        _editors = _existingLog!.entries
+            .map((e) => _EntryEditor(
+                  entry: e,
+                  controller: TextEditingController(text: e.description),
+                ))
+            .toList();
+      } else {
+        _editors = [_newEditor(user.id, '${user.id}_$dateStr')];
+      }
+      
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
@@ -75,7 +93,12 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   void _removeEntry(int index) {
     if (_editors.length == 1) return;
     setState(() {
-      _editors[index].controller.dispose();
+      final removed = _editors[index];
+      // If it's an existing entry from the backend, mark it for deletion
+      if (_existingLog != null && _existingLog!.entries.any((e) => e.id == removed.entry.id)) {
+        _deletedEntryIds.add(removed.entry.id);
+      }
+      removed.controller.dispose();
       _editors.removeAt(index);
     });
   }
@@ -103,24 +126,33 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     setState(() => _saving = true);
     await Future.delayed(const Duration(milliseconds: 500));
 
-    final dateStr = DateFormat('yyyy-MM-dd').format(widget.date);
-    final logId = '${user.id}_$dateStr';
-    final entries = _editors
-        .where((e) =>
-            e.entry.projectId.isNotEmpty &&
-            e.controller.text.trim().isNotEmpty)
-        .map((e) => e.entry.copyWith(description: e.controller.text.trim()))
-        .toList();
+    final validEditors = _editors.where((e) =>
+        e.entry.projectId.isNotEmpty && e.controller.text.trim().isNotEmpty);
 
-    final log = DailyLogModel(
-      id: logId,
-      userId: user.id,
-      date: dateStr,
-      entries: entries,
-      updatedAt: DateTime.now(),
-    );
+    final repo = LogRepository();
+    
+    if (_existingLog != null) {
+      final entriesData = validEditors.map((e) => <String, dynamic>{
+        if (_existingLog!.entries.any((ext) => ext.id == e.entry.id)) 'id': e.entry.id,
+        'projectId': e.entry.projectId,
+        'description': e.controller.text.trim(),
+      }).toList();
+      
+      await repo.updateLog(
+        logId: _existingLog!.id,
+        entries: entriesData,
+        deletedEntryIds: _deletedEntryIds,
+      );
+    } else {
+      final entriesData = validEditors.map((e) => <String, String>{
+        'projectId': e.entry.projectId,
+        'description': e.controller.text.trim(),
+      }).toList();
+      await repo.createLog(entries: entriesData);
+    }
 
-    saveLog(ref, log);
+    ref.invalidate(todayLogProvider);
+    ref.invalidate(yesterdayLogProvider);
 
     setState(() {
       _saving = false;
@@ -190,7 +222,9 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
           children: [
             Expanded(
               child: ListView(
@@ -204,7 +238,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
                       editor: _editors[i],
                       index: i,
                       totalCount: _editors.length,
-                      projects: myProjects,
+                      projects: myProjects.valueOrNull ?? [],
                       isEditable: _isEditable,
                       onRemove: () => _removeEntry(i),
                       onProjectSelected: (projectId) {

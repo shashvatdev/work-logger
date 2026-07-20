@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
-import '../api/api_client.dart';
-import '../api/api_endpoints.dart';
-import '../api/api_exception.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_exception.dart';
 
 /// Search repository
 class SearchRepository {

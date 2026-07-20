@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:uuid/uuid.dart';
+import '../../data/repositories/project_repository.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
@@ -13,132 +13,139 @@ class AdminProjectListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final allProjects = ref.watch(allProjectsProvider);
-    final active = allProjects.where((p) => !p.archived).toList();
-    final archived = allProjects.where((p) => p.archived).toList();
+    final projectsAsync = ref.watch(allProjectsProvider);
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        // ── Header ──────────────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return projectsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(child: Text(e.toString())),
+      data: (allProjects) {
+        final active = allProjects.where((p) => !p.archived).toList();
+        final archived = allProjects.where((p) => p.archived).toList();
+
+        return CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // ── Header ──────────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      'Projects',
-                      style: Theme.of(context).textTheme.displayLarge,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${active.length} active',
-                      style:
-                          Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppColors.textSecondary(context),
-                              ),
-                    ),
-                  ],
-                ),
-                _CreateProjectButton(),
-              ],
-            ),
-          ),
-        ),
-
-        // ── Active projects ──────────────────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-            child: Text(
-              'ACTIVE',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontSize: 11,
-                    letterSpacing: 0.8,
-                    color: AppColors.textSecondary(context),
-                  ),
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          sliver: SliverToBoxAdapter(
-            child: active.isEmpty
-                ? SurfaceCard(
-                    child: Center(
-                      child: Padding(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                        child: Text(
-                          'No active projects.\nCreate one to get started.',
-                          textAlign: TextAlign.center,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Projects',
+                          style: Theme.of(context).textTheme.displayLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${active.length} active',
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: AppColors.textSecondary(context),
                                   ),
                         ),
-                      ),
+                      ],
                     ),
-                  )
-                : SurfaceCard(
+                    _CreateProjectButton(),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Active projects ──────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+                child: Text(
+                  'ACTIVE',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontSize: 11,
+                        letterSpacing: 0.8,
+                        color: AppColors.textSecondary(context),
+                      ),
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              sliver: SliverToBoxAdapter(
+                child: active.isEmpty
+                    ? SurfaceCard(
+                        child: Center(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                            child: Text(
+                              'No active projects.\nCreate one to get started.',
+                              textAlign: TextAlign.center,
+                              style:
+                                  Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: AppColors.textSecondary(context),
+                                      ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : SurfaceCard(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          children: [
+                            for (int i = 0; i < active.length; i++) ...[
+                              _ProjectRow(project: active[i]),
+                              if (i < active.length - 1)
+                                const AppDivider(indent: AppSpacing.md),
+                            ],
+                          ],
+                        ),
+                      ),
+              ),
+            ),
+
+            // ── Archived projects ─────────────────────────────────────────────────
+            if (archived.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+                  child: Text(
+                    'ARCHIVED',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          fontSize: 11,
+                          letterSpacing: 0.8,
+                          color: AppColors.textSecondary(context),
+                        ),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                sliver: SliverToBoxAdapter(
+                  child: SurfaceCard(
                     padding: EdgeInsets.zero,
                     child: Column(
                       children: [
-                        for (int i = 0; i < active.length; i++) ...[
-                          _ProjectRow(project: active[i]),
-                          if (i < active.length - 1)
+                        for (int i = 0; i < archived.length; i++) ...[
+                          _ProjectRow(project: archived[i], archived: true),
+                          if (i < archived.length - 1)
                             const AppDivider(indent: AppSpacing.md),
                         ],
                       ],
                     ),
                   ),
-          ),
-        ),
-
-        // ── Archived projects ─────────────────────────────────────────────────
-        if (archived.isNotEmpty) ...[
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-              child: Text(
-                'ARCHIVED',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontSize: 11,
-                      letterSpacing: 0.8,
-                      color: AppColors.textSecondary(context),
-                    ),
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            sliver: SliverToBoxAdapter(
-              child: SurfaceCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    for (int i = 0; i < archived.length; i++) ...[
-                      _ProjectRow(project: archived[i], archived: true),
-                      if (i < archived.length - 1)
-                        const AppDivider(indent: AppSpacing.md),
-                    ],
-                  ],
                 ),
               ),
-            ),
-          ),
-        ],
+            ],
 
-        const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
-      ],
+            const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+          ],
+        );
+      },
     );
   }
 }
@@ -265,20 +272,17 @@ class _CreateProjectButton extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.lg),
                 PremiumButton(
                   label: 'Create Project',
-                  onPressed: () {
+                  onPressed: () async {
                     if (nameCtrl.text.trim().isEmpty) return;
-                    final uuid = const Uuid();
-                    final newProject = ProjectModel(
-                      id: uuid.v4(),
+                    
+                    final repo = ProjectRepository();
+                    await repo.createProject(
                       name: nameCtrl.text.trim(),
                       description: descCtrl.text.trim(),
-                      archived: false,
-                      createdAt: DateTime.now(),
-                      memberIds: ['admin_1'],
                     );
-                    ref.read(allProjectsProvider.notifier).update((state) =>
-                        [...state, newProject]);
-                    Navigator.pop(context);
+                    
+                    ref.invalidate(allProjectsProvider);
+                    if (context.mounted) Navigator.pop(context);
                   },
                 ),
               ],

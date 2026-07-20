@@ -11,7 +11,7 @@ class ApiClient {
 
   // ── Base URL ─────────────────────────────────────────────────────────────────
   // Change this to your deployed backend URL when going to production.
-  static const String baseUrl = 'http://localhost:5000/api/v1';
+  static const String baseUrl = 'https://work-tracker-np9r.onrender.com/api/v1';
 
   static Dio? _instance;
 

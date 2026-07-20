@@ -6,6 +6,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/models/models.dart';
+import '../../data/repositories/project_repository.dart';
 
 class AdminProjectDetailScreen extends ConsumerWidget {
   final String projectId;
@@ -13,166 +14,163 @@ class AdminProjectDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final projects = ref.watch(allProjectsProvider);
-    final project = projects.where((p) => p.id == projectId).firstOrNull;
-    final allUsers = ref.watch(allUsersProvider);
-    final allLogs = ref.watch(allLogsProvider);
+    final projectsAsync = ref.watch(allProjectsProvider);
+    final usersAsync = ref.watch(allUsersProvider);
+    final timelineAsync = ref.watch(projectTimelineProvider(projectId));
 
-    if (project == null) {
-      return Scaffold(
-        appBar: AppBar(leading: const BackButton()),
-        body: const Center(child: Text('Project not found.')),
-      );
-    }
+    return projectsAsync.when(
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, st) => Scaffold(body: Center(child: Text(e.toString()))),
+      data: (projects) {
+        final project = projects.where((p) => p.id == projectId).firstOrNull;
+        if (project == null) {
+          return Scaffold(
+            appBar: AppBar(leading: const BackButton()),
+            body: const Center(child: Text('Project not found.')),
+          );
+        }
 
-    final members = allUsers
-        .where((u) => project.memberIds.contains(u.id))
-        .toList();
+        final allUsers = usersAsync.valueOrNull ?? [];
+        final members = allUsers.where((u) => project.memberIds.contains(u.id)).toList();
 
-    // Build git-log style timeline entries
-    final timeline = <_TimelineEntry>[];
-    for (final log in allLogs.values) {
-      if (!project.memberIds.contains(log.userId)) continue;
-      for (final entry in log.entries) {
-        if (entry.projectId != projectId) continue;
-        final user = allUsers.where((u) => u.id == log.userId).firstOrNull;
-        if (user == null) continue;
-        timeline.add(_TimelineEntry(
-          date: log.date,
-          userName: user.name,
-          description: entry.description,
-        ));
-      }
-    }
-    timeline.sort((a, b) => b.date.compareTo(a.date));
-
-    return Scaffold(
-      backgroundColor: AppColors.background(context),
-      appBar: AppBar(
-        leading: const BackButton(),
-        title: Text(project.name,
-            style: Theme.of(context).textTheme.titleLarge),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.md),
-            child: _ArchiveButton(project: project),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // ── Members ────────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-                child: Text(
-                  'MEMBERS',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontSize: 11,
-                        letterSpacing: 0.8,
-                        color: AppColors.textSecondary(context),
-                      ),
-                ),
+        return Scaffold(
+          backgroundColor: AppColors.background(context),
+          appBar: AppBar(
+            leading: const BackButton(),
+            title: Text(project.name, style: Theme.of(context).textTheme.titleLarge),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.md),
+                child: _ArchiveButton(project: project),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: SurfaceCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < members.length; i++) ...[
-                        _MemberRow(
-                            member: members[i],
-                            project: project),
-                        if (i < members.length - 1)
-                          const AppDivider(indent: 72),
-                      ],
-                    ],
+            ],
+          ),
+          body: SafeArea(
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // ── Members ────────────────────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+                    child: Text(
+                      'MEMBERS',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontSize: 11,
+                            letterSpacing: 0.8,
+                            color: AppColors.textSecondary(context),
+                          ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-
-            // ── Add member button ──────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.md,
-                    AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
-                child: _AddMemberButton(
-                    project: project, allUsers: allUsers),
-              ),
-            ),
-
-            // ── Timeline ───────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, 0, AppSpacing.md, AppSpacing.xs),
-                child: Text(
-                  'TIMELINE',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontSize: 11,
-                        letterSpacing: 0.8,
-                        color: AppColors.textSecondary(context),
-                      ),
-                ),
-              ),
-            ),
-
-            if (timeline.isEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: SurfaceCard(
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                      child: Center(
-                        child: Text(
-                          'No work logged on this project yet.',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.textSecondary(context),
-                                  ),
-                        ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    child: SurfaceCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < members.length; i++) ...[
+                            _MemberRow(member: members[i], project: project),
+                            if (i < members.length - 1) const AppDivider(indent: 72),
+                          ],
+                        ],
                       ),
                     ),
                   ),
                 ),
-              )
-            else
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final entry = timeline[index];
-                      final prevEntry =
-                          index > 0 ? timeline[index - 1] : null;
-                      final showDateHeader =
-                          prevEntry == null || prevEntry.date != entry.date;
-                      return _TimelineItem(
-                        entry: entry,
-                        showDateHeader: showDateHeader,
-                        isLast: index == timeline.length - 1,
-                      );
-                    },
-                    childCount: timeline.length,
+
+                // ── Add member button ──────────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                        AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
+                    child: _AddMemberButton(project: project, allUsers: allUsers),
                   ),
                 ),
-              ),
 
-            const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
-          ],
-        ),
-      ),
+                // ── Timeline ───────────────────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md, 0, AppSpacing.md, AppSpacing.xs),
+                    child: Text(
+                      'TIMELINE',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontSize: 11,
+                            letterSpacing: 0.8,
+                            color: AppColors.textSecondary(context),
+                          ),
+                    ),
+                  ),
+                ),
+
+                timelineAsync.when(
+                  loading: () => const SliverToBoxAdapter(
+                    child: Center(child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.xl),
+                      child: CircularProgressIndicator(),
+                    )),
+                  ),
+                  error: (e, st) => SliverToBoxAdapter(
+                    child: Center(child: Text('Failed to load timeline')),
+                  ),
+                  data: (timelineRaw) {
+                    final timeline = timelineRaw.map((e) => _TimelineEntry(
+                      date: e['date'] ?? '',
+                      userName: e['userName'] ?? '',
+                      description: e['description'] ?? '',
+                    )).toList();
+
+                    if (timeline.isEmpty) {
+                      return SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                          child: SurfaceCard(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                              child: Center(
+                                child: Text(
+                                  'No work logged on this project yet.',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: AppColors.textSecondary(context),
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final entry = timeline[index];
+                            final prevEntry = index > 0 ? timeline[index - 1] : null;
+                            final showDateHeader = prevEntry == null || prevEntry.date != entry.date;
+                            return _TimelineItem(
+                              entry: entry,
+                              showDateHeader: showDateHeader,
+                              isLast: index == timeline.length - 1,
+                            );
+                          },
+                          childCount: timeline.length,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -189,8 +187,7 @@ class _MemberRow extends ConsumerWidget {
       contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: 6),
       leading: InitialsAvatar(name: member.name, radius: 20),
-      title: Text(member.name,
-          style: Theme.of(context).textTheme.bodyLarge),
+      title: Text(member.name, style: Theme.of(context).textTheme.bodyLarge),
       subtitle: Text(
         isAdmin ? 'Admin' : 'Employee',
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -199,21 +196,13 @@ class _MemberRow extends ConsumerWidget {
       ),
       trailing: !isAdmin
           ? GestureDetector(
-              onTap: () {
-                ref.read(allProjectsProvider.notifier).update((state) {
-                  return state.map((p) {
-                    if (p.id == project.id) {
-                      final newMembers = List<String>.from(p.memberIds)
-                        ..remove(member.id);
-                      return p.copyWith(memberIds: newMembers);
-                    }
-                    return p;
-                  }).toList();
-                });
+              onTap: () async {
+                final repo = ProjectRepository();
+                await repo.removeProjectMember(project.id, member.id);
+                ref.invalidate(allProjectsProvider);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.error.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
@@ -235,14 +224,12 @@ class _MemberRow extends ConsumerWidget {
 class _AddMemberButton extends ConsumerWidget {
   final ProjectModel project;
   final List<UserModel> allUsers;
-  const _AddMemberButton(
-      {required this.project, required this.allUsers});
+  const _AddMemberButton({required this.project, required this.allUsers});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notAssigned = allUsers
-        .where((u) =>
-            !u.isAdmin && !project.memberIds.contains(u.id))
+        .where((u) => !u.isAdmin && !project.memberIds.contains(u.id))
         .toList();
 
     if (notAssigned.isEmpty) return const SizedBox.shrink();
@@ -289,17 +276,11 @@ class _AddMemberButton extends ConsumerWidget {
                 leading: InitialsAvatar(name: user.name, radius: 18),
                 title: Text(user.name,
                     style: Theme.of(context).textTheme.bodyLarge),
-                onTap: () {
-                  ref.read(allProjectsProvider.notifier).update((state) {
-                    return state.map((p) {
-                      if (p.id == project.id) {
-                        final newMembers = [...p.memberIds, user.id];
-                        return p.copyWith(memberIds: newMembers);
-                      }
-                      return p;
-                    }).toList();
-                  });
-                  Navigator.pop(context);
+                onTap: () async {
+                  final repo = ProjectRepository();
+                  await repo.addProjectMember(project.id, user.id);
+                  ref.invalidate(allProjectsProvider);
+                  if (context.mounted) Navigator.pop(context);
                 },
               ),
               if (candidates.last.id != user.id)
@@ -320,20 +301,14 @@ class _ArchiveButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onTap: () {
-        ref.read(allProjectsProvider.notifier).update((state) {
-          return state.map((p) {
-            if (p.id == project.id) {
-              return p.copyWith(archived: !p.archived);
-            }
-            return p;
-          }).toList();
-        });
-        Navigator.of(context).pop();
+      onTap: () async {
+        final repo = ProjectRepository();
+        await repo.archiveProject(project.id, !project.archived);
+        ref.invalidate(allProjectsProvider);
+        if (context.mounted) Navigator.pop(context);
       },
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: project.archived
               ? AppColors.logDot.withOpacity(0.12)
@@ -343,9 +318,7 @@ class _ArchiveButton extends ConsumerWidget {
         child: Text(
           project.archived ? 'Unarchive' : 'Archive',
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: project.archived
-                    ? AppColors.logDot
-                    : AppColors.warning,
+                color: project.archived ? AppColors.logDot : AppColors.warning,
                 fontSize: 14,
               ),
         ),
@@ -358,10 +331,11 @@ class _TimelineEntry {
   final String date;
   final String userName;
   final String description;
-  const _TimelineEntry(
-      {required this.date,
-      required this.userName,
-      required this.description});
+  const _TimelineEntry({
+    required this.date,
+    required this.userName,
+    required this.description,
+  });
 }
 
 class _TimelineItem extends StatelessWidget {
@@ -377,8 +351,10 @@ class _TimelineItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateDisplay =
-        DateFormat('d MMMM').format(DateTime.parse(entry.date));
+    String dateDisplay = entry.date;
+    try {
+      dateDisplay = DateFormat('d MMMM').format(DateTime.parse(entry.date));
+    } catch (_) {}
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,7 +372,6 @@ class _TimelineItem extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
         ],
-
         // Timeline dot + connector line
         IntrinsicHeight(
           child: Row(

@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:dio/dio.dart' as dio_lib;
-import '../api/api_client.dart';
-import '../api/api_endpoints.dart';
-import '../api/api_exception.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
+import '../../core/api/api_exception.dart';
 
 /// Attachment repository — upload, delete, download-url
 class AttachmentRepository {

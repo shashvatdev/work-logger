@@ -13,12 +13,25 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
-    final myProjects = ref.watch(myProjectsProvider);
-    final todayLog = ref.watch(todayLogProvider);
-    final yesterdayLog = ref.watch(yesterdayLogProvider);
+    final myProjectsAsync = ref.watch(myProjectsProvider);
+    final todayLogAsync = ref.watch(todayLogProvider);
+    final yesterdayLogAsync = ref.watch(yesterdayLogProvider);
     final today = DateTime.now();
 
     if (user == null) return const SizedBox.shrink();
+
+    if (myProjectsAsync.isLoading || todayLogAsync.isLoading || yesterdayLogAsync.isLoading) {
+      if (!myProjectsAsync.hasValue && !todayLogAsync.hasValue) {
+        return Scaffold(
+          backgroundColor: AppColors.background(context),
+          body: const Center(child: CircularProgressIndicator()),
+        );
+      }
+    }
+
+    final myProjects = myProjectsAsync.valueOrNull ?? [];
+    final todayLog = todayLogAsync.valueOrNull;
+    final yesterdayLog = yesterdayLogAsync.valueOrNull;
 
     final hasYesterdayLog = yesterdayLog != null && yesterdayLog.entries.isNotEmpty;
     final hasTodayLog = todayLog != null && todayLog.entries.isNotEmpty;

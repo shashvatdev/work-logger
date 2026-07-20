@@ -5,7 +5,10 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
-import '../../data/mock/mock_data.dart';
+
+import '../../data/repositories/auth_repository.dart';
+import '../../core/api/api_exception.dart';
+import '../../data/models/models.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -54,24 +57,37 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       _error = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 600));
-
     final email = _emailCtrl.text.trim().toLowerCase();
-    final user = mockUsers.where((u) => u.email == email).firstOrNull;
+    final password = _passCtrl.text;
 
-    if (user == null) {
+    if (email.isEmpty || password.isEmpty) {
       setState(() {
-        _error = 'No account found for this email.';
+        _error = 'Please enter email and password.';
         _loading = false;
       });
       return;
     }
 
-    ref.read(currentUserProvider.notifier).state = user;
-    setState(() => _loading = false);
+    final repo = AuthRepository();
+    final result = await repo.login(email: email, password: password);
 
     if (!mounted) return;
-    context.go(user.isAdmin ? '/admin/employees' : '/home');
+
+    switch (result) {
+      case ApiSuccess(data: final data):
+        final userJson = data['user'] as Map<String, dynamic>;
+        final user = UserModel.fromJson(userJson);
+        ref.read(currentUserProvider.notifier).state = user;
+        setState(() => _loading = false);
+        context.go(user.isAdmin ? '/admin/employees' : '/home');
+        break;
+      case ApiError(exception: final ex):
+        setState(() {
+          _error = ex.message;
+          _loading = false;
+        });
+        break;
+    }
   }
 
   @override

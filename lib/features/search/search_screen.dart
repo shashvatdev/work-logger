@@ -34,7 +34,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(searchResultsProvider);
+    final resultsAsync = ref.watch(searchResultsProvider);
+    final results = resultsAsync.valueOrNull ?? [];
     final query = ref.watch(searchQueryProvider);
 
     return Scaffold(
@@ -106,12 +107,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 duration: const Duration(milliseconds: 200),
                 child: query.isEmpty
                     ? _EmptySearchState(key: const ValueKey('empty'))
-                    : results.isEmpty
-                        ? _NoResultsState(
-                            key: const ValueKey('noResults'),
-                            query: query,
-                          )
-                        : ListView.separated(
+                    : resultsAsync.isLoading
+                        ? const Center(key: ValueKey('loading'), child: CircularProgressIndicator())
+                        : results.isEmpty
+                            ? _NoResultsState(
+                                key: const ValueKey('noResults'),
+                                query: query,
+                              )
+                            : ListView.separated(
                             key: const ValueKey('results'),
                             physics: const BouncingScrollPhysics(),
                             padding: const EdgeInsets.symmetric(

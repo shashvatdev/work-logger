@@ -28,10 +28,15 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
     final targetUid = widget.viewUserId ?? currentUser?.id ?? '';
-    final datesWithLogs = ref.watch(datesWithLogsProvider(targetUid));
+    final datesWithLogsAsync = ref.watch(datesWithLogsProvider((
+      uid: targetUid,
+      year: _focusedMonth.year,
+      month: _focusedMonth.month,
+    )));
+    final datesWithLogs = datesWithLogsAsync.valueOrNull ?? <String>{};
 
-    final targetUser = ref.read(allUsersProvider)
-        .where((u) => u.id == targetUid)
+    final targetUser = ref.watch(allUsersProvider).valueOrNull
+        ?.where((u) => u.id == targetUid)
         .firstOrNull;
 
     return Scaffold(

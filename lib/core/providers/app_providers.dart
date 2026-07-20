@@ -1,135 +1,139 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/models.dart';
-import '../../data/mock/mock_data.dart';
+import '../../data/repositories/user_repository.dart';
+import '../../data/repositories/project_repository.dart';
+import '../../data/repositories/log_repository.dart';
+import '../../data/repositories/search_repository.dart';
+import '../api/api_exception.dart';
 
 // ─── Current User ────────────────────────────────────────────────────────────
 final currentUserProvider = StateProvider<UserModel?>((ref) => null);
 
 // ─── All Users (for Admin) ───────────────────────────────────────────────────
-final allUsersProvider = StateProvider<List<UserModel>>((ref) => mockUsers);
+final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {
+  final repo = UserRepository();
+  final result = await repo.getAllUsers();
+  return switch (result) {
+    ApiSuccess(data: final users) => users,
+    ApiError(exception: final ex) => throw ex,
+  };
+});
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
-final allProjectsProvider = StateProvider<List<ProjectModel>>((ref) => mockProjects);
+final allProjectsProvider = FutureProvider<List<ProjectModel>>((ref) async {
+  final repo = ProjectRepository();
+  final result = await repo.getProjects();
+  return switch (result) {
+    ApiSuccess(data: final projects) => projects,
+    ApiError(exception: final ex) => throw ex,
+  };
+});
 
-final myProjectsProvider = Provider<List<ProjectModel>>((ref) {
+final myProjectsProvider = FutureProvider<List<ProjectModel>>((ref) async {
   final user = ref.watch(currentUserProvider);
-  final projects = ref.watch(allProjectsProvider);
   if (user == null) return [];
+  
+  final projects = await ref.watch(allProjectsProvider.future);
   if (user.isAdmin) return projects.where((p) => !p.archived).toList();
-  return projects
-      .where((p) => !p.archived && p.memberIds.contains(user.id))
-      .toList();
+  // The API already filters the project list to show only assigned projects for employees.
+  return projects.where((p) => !p.archived).toList();
+});
+
+final projectTimelineProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, projectId) async {
+  final repo = ProjectRepository();
+  final result = await repo.getProjectTimeline(projectId);
+  return switch (result) {
+    ApiSuccess(data: final data) => List<Map<String, dynamic>>.from(data['entries'] ?? []),
+    ApiError(exception: final ex) => throw ex,
+  };
 });
 
 // ─── Daily Logs ───────────────────────────────────────────────────────────────
-final allLogsProvider =
-    StateProvider<Map<String, DailyLogModel>>((ref) => Map.from(mockDailyLogs));
-
-String _logKey(String uid, DateTime date) =>
-    '${uid}_${DateFormat('yyyy-MM-dd').format(date)}';
-
-final todayLogProvider = Provider<DailyLogModel?>((ref) {
+final todayLogProvider = FutureProvider<DailyLogModel?>((ref) async {
   final user = ref.watch(currentUserProvider);
-  final logs = ref.watch(allLogsProvider);
   if (user == null) return null;
-  return logs[_logKey(user.id, DateTime.now())];
+  final repo = LogRepository();
+  final result = await repo.getTodayLog();
+  return switch (result) {
+    ApiSuccess(data: final log) => log,
+    ApiError(exception: final ex) => throw ex,
+  };
 });
 
-final yesterdayLogProvider = Provider<DailyLogModel?>((ref) {
+final yesterdayLogProvider = FutureProvider<DailyLogModel?>((ref) async {
   final user = ref.watch(currentUserProvider);
-  final logs = ref.watch(allLogsProvider);
   if (user == null) return null;
   final yesterday = DateTime.now().subtract(const Duration(days: 1));
-  return logs[_logKey(user.id, yesterday)];
+  final dateStr = DateFormat('yyyy-MM-dd').format(yesterday);
+  final repo = LogRepository();
+  final result = await repo.getLogByDate(dateStr);
+  return switch (result) {
+    ApiSuccess(data: final log) => log,
+    ApiError(exception: final ex) => throw ex,
+  };
+});
+
+final logForDateProvider = FutureProvider.family<DailyLogModel?, ({String uid, DateTime date})>((ref, args) async {
+  final dateStr = DateFormat('yyyy-MM-dd').format(args.date);
+  final repo = LogRepository();
+  final result = await repo.getUserLogByDate(args.uid, dateStr);
+  return switch (result) {
+    ApiSuccess(data: final log) => log,
+    ApiError(exception: final ex) => throw ex,
+  };
 });
 
 // ─── Employee Today Status (Admin) ──────────────────────────────────────────
-final employeeTodayStatusProvider = Provider.family<bool, String>((ref, uid) {
-  final logs = ref.watch(allLogsProvider);
-  final today = DateTime.now();
-  return logs.containsKey(_logKey(uid, today));
-});
-
-// ─── Log for specific uid + date ─────────────────────────────────────────────
-final logForDateProvider =
-    Provider.family<DailyLogModel?, ({String uid, DateTime date})>((ref, args) {
-  final logs = ref.watch(allLogsProvider);
-  return logs[_logKey(args.uid, args.date)];
+final employeeTodayStatusProvider = FutureProvider.family<bool, String>((ref, uid) async {
+  final repo = UserRepository();
+  final result = await repo.getTodayStatus(uid);
+  return switch (result) {
+    ApiSuccess(data: final status) => status['hasLoggedToday'] == true,
+    ApiError(exception: final ex) => throw ex,
+  };
 });
 
 // ─── Dates with logs (for calendar) ─────────────────────────────────────────
-final datesWithLogsProvider = Provider.family<Set<String>, String>((ref, uid) {
-  final logs = ref.watch(allLogsProvider);
-  return logs.entries
-      .where((e) => e.value.userId == uid)
-      .map((e) => e.value.date)
-      .toSet();
+final datesWithLogsProvider = FutureProvider.family<Set<String>, ({String uid, int year, int month})>((ref, args) async {
+  final repo = LogRepository();
+  // Fetch a broad range for the calendar view (e.g. 1 month)
+  final from = DateTime(args.year, args.month, 1);
+  final to = DateTime(args.year, args.month + 1, 0); // Last day of month
+  
+  final fromStr = DateFormat('yyyy-MM-dd').format(from);
+  final toStr = DateFormat('yyyy-MM-dd').format(to);
+  
+  final result = await repo.getUserLogs(args.uid, from: fromStr, to: toStr, pageSize: 100);
+  return switch (result) {
+    ApiSuccess(data: final data) => (data['logs'] as List).map((l) => l['logDate'] as String).toSet(),
+    ApiError(exception: final ex) => throw ex,
+  };
 });
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
-final searchResultsProvider = Provider<List<SearchResult>>((ref) {
+final searchResultsProvider = FutureProvider<List<SearchResult>>((ref) async {
   final query = ref.watch(searchQueryProvider).toLowerCase().trim();
   if (query.isEmpty) return [];
-
-  final logs = ref.watch(allLogsProvider);
-  final users = ref.watch(allUsersProvider);
-  final projects = ref.watch(allProjectsProvider);
-  final currentUser = ref.watch(currentUserProvider);
-
-  final userMap = {for (final u in users) u.id: u};
-  final projectMap = {for (final p in projects) p.id: p};
-
-  final results = <SearchResult>[];
-
-  for (final log in logs.values) {
-    // Employee can only see their own logs
-    if (currentUser != null && !currentUser.isAdmin) {
-      if (log.userId != currentUser.id) continue;
-    }
-    for (final entry in log.entries) {
-      final project = projectMap[entry.projectId];
-      final user = userMap[log.userId];
-      if (project == null || user == null) continue;
-
-      final matchDesc = entry.description.toLowerCase().contains(query);
-      final matchProject = project.name.toLowerCase().contains(query);
-      final matchUser = user.name.toLowerCase().contains(query);
-
-      if (matchDesc || matchProject || matchUser) {
-        results.add(SearchResult(
-          date: log.date,
-          projectName: project.name,
-          excerpt: _excerpt(entry.description, query),
-          userId: log.userId,
-          userName: user.name,
-          logId: log.id,
-        ));
-      }
-    }
-  }
-
-  results.sort((a, b) => b.date.compareTo(a.date));
-  return results;
+  
+  final repo = SearchRepository();
+  final result = await repo.search(query: query);
+  
+  return switch (result) {
+    ApiSuccess(data: final data) => (data['results'] as List)
+        .map((r) => SearchResult(
+              date: r['logDate'] ?? '',
+              projectName: r['projectName'] ?? '',
+              projectId: r['projectId'] ?? '',
+              excerpt: r['excerpt'] ?? '',
+              userId: r['userId'] ?? '',
+              userName: r['userName'] ?? '',
+              logId: r['logId'] ?? '', // backend does not return logId in search? Let's use empty or adjust
+              logEntryId: r['logEntryId'] ?? '',
+            ))
+        .toList(),
+    ApiError(exception: final ex) => throw ex,
+  };
 });
-
-String _excerpt(String text, String query) {
-  final lower = text.toLowerCase();
-  final idx = lower.indexOf(query);
-  if (idx == -1) return text.length > 80 ? '${text.substring(0, 80)}…' : text;
-  final start = (idx - 30).clamp(0, text.length);
-  final end = (idx + query.length + 50).clamp(0, text.length);
-  final excerpt = text.substring(start, end);
-  return '${start > 0 ? '…' : ''}$excerpt${end < text.length ? '…' : ''}';
-}
-
-// ─── Save Log ─────────────────────────────────────────────────────────────────
-void saveLog(WidgetRef ref, DailyLogModel log) {
-  ref.read(allLogsProvider.notifier).update((state) {
-    final updated = Map<String, DailyLogModel>.from(state);
-    updated[log.id] = log;
-    return updated;
-  });
-}
