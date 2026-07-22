@@ -244,6 +244,14 @@ class AttachmentModel {
     this.uploadedAt,
   });
 
+  String get fullUrl {
+    if (url == null) return '';
+    if (url!.startsWith('http://') || url!.startsWith('https://')) {
+      return url!;
+    }
+    return 'https://worktracker.addonshareware.com$url';
+  }
+
   factory AttachmentModel.fromJson(Map<String, dynamic> json) {
     final fileType = json['fileType'] as String? ?? 'other';
     return AttachmentModel(

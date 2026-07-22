@@ -6,9 +6,23 @@ import '../../data/repositories/project_repository.dart';
 import '../../data/repositories/log_repository.dart';
 import '../../data/repositories/search_repository.dart';
 import '../api/api_exception.dart';
+import '../api/token_storage.dart';
 
 // ─── Current User ────────────────────────────────────────────────────────────
 final currentUserProvider = StateProvider<UserModel?>((ref) => null);
+
+final authCheckProvider = FutureProvider<void>((ref) async {
+  final token = await TokenStorage.getAccessToken();
+  if (token != null) {
+    final repo = UserRepository();
+    final result = await repo.getMe();
+    if (result is ApiSuccess<UserModel>) {
+      ref.read(currentUserProvider.notifier).state = result.data;
+    } else {
+      await TokenStorage.clearAll();
+    }
+  }
+});
 
 // ─── All Users (for Admin) ───────────────────────────────────────────────────
 final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {

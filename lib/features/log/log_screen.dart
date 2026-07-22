@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
@@ -9,6 +12,7 @@ import '../../core/widgets/widgets.dart';
 import '../../core/utils/date_extensions.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/log_repository.dart';
+import '../../data/repositories/attachment_repository.dart';
 import '../../core/api/api_exception.dart';
 
 class LogScreen extends ConsumerStatefulWidget {
@@ -166,6 +170,343 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     }
   }
 
+  Future<bool> _autoSave() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null || !_isEditable) return false;
+
+    for (int i = 0; i < _editors.length; i++) {
+      final editor = _editors[i];
+      if (editor.entry.projectId.isEmpty || editor.controller.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please select a project and fill in the description for all entries before adding attachments.'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        return false;
+      }
+    }
+
+    setState(() => _saving = true);
+
+    final repo = LogRepository();
+    DailyLogModel? savedLog;
+
+    if (_existingLog != null) {
+      final entriesData = _editors.map((e) => <String, dynamic>{
+        if (_existingLog!.entries.any((ext) => ext.id == e.entry.id)) 'id': e.entry.id,
+        'projectId': e.entry.projectId,
+        'description': e.controller.text.trim(),
+      }).toList();
+
+      final result = await repo.updateLog(
+        logId: _existingLog!.id,
+        entries: entriesData,
+        deletedEntryIds: _deletedEntryIds,
+      );
+
+      if (result is ApiSuccess) {
+        savedLog = result.data;
+        _deletedEntryIds.clear();
+      }
+    } else {
+      final entriesData = _editors.map((e) => <String, String>{
+        'projectId': e.entry.projectId,
+        'description': e.controller.text.trim(),
+      }).toList();
+
+      final result = await repo.createLog(entries: entriesData);
+      if (result is ApiSuccess) {
+        savedLog = result.data;
+      }
+    }
+
+    if (savedLog != null) {
+      _existingLog = savedLog;
+      final updatedEntries = savedLog.entries;
+      for (int i = 0; i < _editors.length; i++) {
+        if (i < updatedEntries.length) {
+          _editors[i] = _EntryEditor(
+            entry: updatedEntries[i],
+            controller: _editors[i].controller,
+            uploading: _editors[i].uploading,
+          );
+        }
+      }
+      ref.invalidate(todayLogProvider);
+      ref.invalidate(yesterdayLogProvider);
+      setState(() => _saving = false);
+      return true;
+    } else {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save log progress.')),
+      );
+      return false;
+    }
+  }
+
+  void _showAttachmentPicker(int index) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.elevated(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.separator(context),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Add Attachment',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Choose how you want to select a file',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary(context),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.photo_camera_rounded, color: Colors.blue, size: 22),
+              ),
+              title: const Text('Camera', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Take a photo using your camera'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickAttachment(index, AttachmentSource.camera);
+              },
+            ),
+            const AppDivider(indent: 72),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.photo_library_rounded, color: Colors.purple, size: 22),
+              ),
+              title: const Text('Photo Library', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Select an image from gallery'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickAttachment(index, AttachmentSource.gallery);
+              },
+            ),
+            const AppDivider(indent: 72),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.insert_drive_file_rounded, color: Colors.orange, size: 22),
+              ),
+              title: const Text('Browse Files', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Choose a document or PDF file'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickAttachment(index, AttachmentSource.files);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAttachment(int index, AttachmentSource source) async {
+    final saved = await _autoSave();
+    if (!saved) return;
+
+    final entryId = _editors[index].entry.id;
+    if (entryId.isEmpty) return;
+
+    String? filePath;
+    String? fileName;
+
+    try {
+      if (source == AttachmentSource.camera || source == AttachmentSource.gallery) {
+        final picker = ImagePicker();
+        final XFile? image = await picker.pickImage(
+          source: source == AttachmentSource.camera
+              ? ImageSource.camera
+              : ImageSource.gallery,
+          imageQuality: 85,
+        );
+        if (image != null) {
+          filePath = image.path;
+          fileName = image.name;
+        }
+      } else {
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.any,
+          allowMultiple: false,
+        );
+        if (result != null && result.files.single.path != null) {
+          filePath = result.files.single.path;
+          fileName = result.files.single.name;
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error selecting file: $e')),
+      );
+      return;
+    }
+
+    if (filePath == null || fileName == null) {
+      return;
+    }
+
+    setState(() {
+      _editors[index].uploading = true;
+    });
+
+    final repo = AttachmentRepository();
+    final uploadResult = await repo.uploadAttachment(
+      logEntryId: entryId,
+      filePath: filePath,
+      fileName: fileName,
+    );
+
+    if (mounted) {
+      setState(() {
+        _editors[index].uploading = false;
+      });
+
+      if (uploadResult is ApiSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Uploaded "$fileName" successfully.'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        _loadLog();
+      } else {
+        final err = (uploadResult as ApiError).exception;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload failed: ${err.message}'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAttachment(int index, String attachmentId) async {
+    setState(() {
+      _editors[index].uploading = true;
+    });
+
+    final repo = AttachmentRepository();
+    final result = await repo.deleteAttachment(attachmentId);
+
+    if (mounted) {
+      setState(() {
+        _editors[index].uploading = false;
+      });
+
+      if (result is ApiSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Attachment deleted.'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        _loadLog();
+      } else {
+        final err = (result as ApiError).exception;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Delete failed: ${err.message}'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openAttachment(String attachmentId) async {
+    final repo = AttachmentRepository();
+    final result = await repo.getDownloadUrl(attachmentId);
+    if (result is ApiSuccess) {
+      final downloadUrl = result.data['downloadUrl'] as String?;
+      if (downloadUrl != null && downloadUrl.isNotEmpty) {
+        String fullUrl = downloadUrl;
+        if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
+          fullUrl = 'https://worktracker.addonshareware.com$downloadUrl';
+        }
+        final uri = Uri.parse(fullUrl);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Could not open attachment url.')),
+            );
+          }
+        }
+      }
+    } else {
+      if (mounted) {
+        final err = (result as ApiError).exception;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to get download link: ${err.message}')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     for (final e in _editors) {
@@ -246,10 +587,14 @@ class _LogScreenState extends ConsumerState<LogScreen> {
                           _editors[i] = _EntryEditor(
                             entry: _editors[i].entry.copyWith(projectId: projectId),
                             controller: _editors[i].controller,
+                            uploading: _editors[i].uploading,
                           );
                         });
                       },
                       onChanged: (_) => setState(() {}),
+                      onAddAttachment: () => _showAttachmentPicker(i),
+                      onDeleteAttachment: (attachmentId) => _deleteAttachment(i, attachmentId),
+                      onTapAttachment: (attachmentId) => _openAttachment(attachmentId),
                     ),
                     const SizedBox(height: AppSpacing.md),
                   ],
@@ -344,7 +689,12 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 class _EntryEditor {
   final LogEntryModel entry;
   final TextEditingController controller;
-  _EntryEditor({required this.entry, required this.controller});
+  bool uploading;
+  _EntryEditor({
+    required this.entry,
+    required this.controller,
+    this.uploading = false,
+  });
 }
 
 class _EntrySection extends StatefulWidget {
@@ -356,6 +706,9 @@ class _EntrySection extends StatefulWidget {
   final VoidCallback onRemove;
   final ValueChanged<String> onProjectSelected;
   final ValueChanged<String> onChanged;
+  final VoidCallback onAddAttachment;
+  final ValueChanged<String> onDeleteAttachment;
+  final ValueChanged<String> onTapAttachment;
 
   const _EntrySection({
     super.key,
@@ -367,6 +720,9 @@ class _EntrySection extends StatefulWidget {
     required this.onRemove,
     required this.onProjectSelected,
     required this.onChanged,
+    required this.onAddAttachment,
+    required this.onDeleteAttachment,
+    required this.onTapAttachment,
   });
 
   @override
@@ -485,29 +841,50 @@ class _EntrySectionState extends State<_EntrySection> {
                   ),
             ),
             trailing: widget.isEditable
-                ? Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textSecondary(context), size: 18)
+                ? (widget.editor.uploading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accent,
+                        ),
+                      )
+                    : Icon(Icons.chevron_right_rounded,
+                        color: AppColors.textSecondary(context), size: 18))
                 : null,
             contentPadding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md, vertical: 0),
             minLeadingWidth: 0,
             dense: true,
-            onTap: widget.isEditable
-                ? () {
-                    // Attachment picker stub
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content:
-                            const Text('Attachment support coming soon.'),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        margin: const EdgeInsets.all(16),
-                      ),
-                    );
-                  }
+            onTap: widget.isEditable && !widget.editor.uploading
+                ? widget.onAddAttachment
                 : null,
           ),
+
+          if (entry.attachments.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.md),
+              child: SizedBox(
+                height: 90,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: entry.attachments.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 14),
+                  itemBuilder: (context, attachmentIndex) {
+                    final att = entry.attachments[attachmentIndex];
+                    return _AttachmentItem(
+                      attachment: att,
+                      isEditable: widget.isEditable,
+                      onDelete: () => widget.onDeleteAttachment(att.id),
+                      onTap: () => widget.onTapAttachment(att.id),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -669,3 +1046,170 @@ class _QuickPresets extends StatelessWidget {
     );
   }
 }
+
+class _AttachmentItem extends StatelessWidget {
+  final AttachmentModel attachment;
+  final bool isEditable;
+  final VoidCallback onDelete;
+  final VoidCallback onTap;
+
+  const _AttachmentItem({
+    required this.attachment,
+    required this.isEditable,
+    required this.onDelete,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget previewWidget;
+    bool isImage = attachment.type == AttachmentType.image;
+
+    if (isImage && attachment.url != null) {
+      previewWidget = Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.separator(context),
+            width: 0.5,
+          ),
+          image: DecorationImage(
+            image: NetworkImage(attachment.fullUrl),
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    } else {
+      IconData iconData;
+      Color iconColor;
+
+      switch (attachment.type) {
+        case AttachmentType.pdf:
+          iconData = Icons.picture_as_pdf_rounded;
+          iconColor = Colors.red;
+          break;
+        case AttachmentType.zip:
+          iconData = Icons.archive_rounded;
+          iconColor = Colors.orange;
+          break;
+        case AttachmentType.apk:
+          iconData = Icons.android_rounded;
+          iconColor = Colors.green;
+          break;
+        case AttachmentType.video:
+          iconData = Icons.movie_creation_rounded;
+          iconColor = Colors.blue;
+          break;
+        default:
+          iconData = Icons.insert_drive_file_rounded;
+          iconColor = AppColors.textSecondary(context);
+      }
+
+      previewWidget = Container(
+        width: 160,
+        height: 80,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.separator(context),
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(iconData, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    attachment.fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  if (attachment.fileSizeBytes != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatBytes(attachment.fileSizeBytes!),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: AppColors.textSecondary(context),
+                            fontSize: 10,
+                          ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          previewWidget,
+          if (isEditable)
+            Positioned(
+              top: -6,
+              right: -6,
+              child: GestureDetector(
+                onTap: onDelete,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 12,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB'];
+    var i = 0;
+    double count = bytes.toDouble();
+    while (count >= 1024 && i < suffixes.length - 1) {
+      count /= 1024;
+      i++;
+    }
+    return '${count.toStringAsFixed(1)} ${suffixes[i]}';
+  }
+}
+
+enum AttachmentSource { camera, gallery, files }

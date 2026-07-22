@@ -228,16 +228,14 @@ class _AddMemberButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final notAssigned = allUsers
-        .where((u) => !u.isAdmin && !project.memberIds.contains(u.id))
-        .toList();
+    final employees = allUsers.where((u) => !u.isAdmin).toList();
 
-    if (notAssigned.isEmpty) return const SizedBox.shrink();
+    if (employees.isEmpty) return const SizedBox.shrink();
 
     return SecondaryButton(
       label: 'Assign Employee',
       icon: Icons.person_add_outlined,
-      onPressed: () => _showAssignSheet(context, ref, notAssigned),
+      onPressed: () => _showAssignSheet(context, ref, employees),
     );
   }
 
@@ -270,19 +268,29 @@ class _AddMemberButton extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             for (final user in candidates) ...[
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 4),
-                leading: InitialsAvatar(name: user.name, radius: 18),
-                title: Text(user.name,
-                    style: Theme.of(context).textTheme.bodyLarge),
-                onTap: () async {
-                  final repo = ProjectRepository();
-                  await repo.addProjectMember(project.id, user.id);
-                  ref.invalidate(allProjectsProvider);
-                  if (context.mounted) Navigator.pop(context);
-                },
-              ),
+              (() {
+                final isAlreadyAdded = project.memberIds.contains(user.id);
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 4),
+                  leading: InitialsAvatar(name: user.name, radius: 18),
+                  title: Text(user.name,
+                      style: Theme.of(context).textTheme.bodyLarge),
+                  trailing: isAlreadyAdded
+                      ? const Icon(Icons.check, color: AppColors.accent)
+                      : null,
+                  onTap: () async {
+                    final repo = ProjectRepository();
+                    if (isAlreadyAdded) {
+                      await repo.removeProjectMember(project.id, user.id);
+                    } else {
+                      await repo.addProjectMember(project.id, user.id);
+                    }
+                    ref.invalidate(allProjectsProvider);
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                );
+              }()),
               if (candidates.last.id != user.id)
                 const AppDivider(indent: 72),
             ],

@@ -167,7 +167,7 @@ class _ProjectRow extends StatelessWidget {
             ),
       ),
       subtitle: Text(
-        '${project.memberIds.length} members',
+        '${project.memberCount} members',
         style: Theme.of(context).textTheme.labelMedium?.copyWith(
               fontSize: 12,
             ),
