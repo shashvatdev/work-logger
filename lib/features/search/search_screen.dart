@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
+import '../../data/models/models.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -35,7 +36,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final resultsAsync = ref.watch(searchResultsProvider);
-    final results = resultsAsync.valueOrNull ?? [];
+    final results = resultsAsync.valueOrNull ?? <SearchResult>[];
     final query = ref.watch(searchQueryProvider);
 
     return Scaffold(
@@ -107,14 +108,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 duration: const Duration(milliseconds: 200),
                 child: query.isEmpty
                     ? _EmptySearchState(key: const ValueKey('empty'))
-                    : resultsAsync.isLoading
-                        ? const Center(key: ValueKey('loading'), child: CircularProgressIndicator())
-                        : results.isEmpty
-                            ? _NoResultsState(
-                                key: const ValueKey('noResults'),
-                                query: query,
-                              )
-                            : ListView.separated(
+                    : resultsAsync.hasError
+                        ? Center(
+                            key: const ValueKey('error'),
+                            child: Text(
+                              'Failed to perform search.',
+                              style: TextStyle(color: AppColors.error),
+                            ),
+                          )
+                        : resultsAsync.isLoading
+                            ? const Center(key: ValueKey('loading'), child: CircularProgressIndicator())
+                            : results.isEmpty
+                                ? _NoResultsState(
+                                    key: const ValueKey('noResults'),
+                                    query: query,
+                                  )
+                                : ListView.separated(
                             key: const ValueKey('results'),
                             physics: const BouncingScrollPhysics(),
                             padding: const EdgeInsets.symmetric(

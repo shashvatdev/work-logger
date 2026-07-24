@@ -41,7 +41,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) {
           final dateStr = state.pathParameters['date']!;
           final date = DateTime.parse(dateStr);
-          return LogScreen(date: date);
+          final continueYesterday = state.uri.queryParameters['continueYesterday'] == 'true';
+          return LogScreen(date: date, continueYesterday: continueYesterday);
         },
       ),
       GoRoute(path: '/calendar', builder: (_, __) => const CalendarScreen()),

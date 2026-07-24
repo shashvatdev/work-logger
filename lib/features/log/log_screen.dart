@@ -17,7 +17,8 @@ import '../../core/api/api_exception.dart';
 
 class LogScreen extends ConsumerStatefulWidget {
   final DateTime date;
-  const LogScreen({super.key, required this.date});
+  final bool continueYesterday;
+  const LogScreen({super.key, required this.date, this.continueYesterday = false});
 
   @override
   ConsumerState<LogScreen> createState() => _LogScreenState();
@@ -25,7 +26,7 @@ class LogScreen extends ConsumerStatefulWidget {
 
 class _LogScreenState extends ConsumerState<LogScreen> {
   final _uuid = const Uuid();
-  late List<_EntryEditor> _editors;
+  List<_EntryEditor>? _editors;
   bool _loading = true;
   bool _saving = false;
   bool _saved = false;
@@ -56,16 +57,57 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         _existingLog = result.data;
       }
       
+      final oldEditors = _editors;
+      List<_EntryEditor> newEditors = [];
+
       if (_existingLog != null && _existingLog!.entries.isNotEmpty) {
-        _editors = _existingLog!.entries
-            .map((e) => _EntryEditor(
-                  entry: e,
-                  controller: TextEditingController(text: e.description),
-                ))
-            .toList();
+        for (final e in _existingLog!.entries) {
+          final existing = oldEditors?.where((ed) => ed.entry.id == e.id).firstOrNull;
+          if (existing != null) {
+            newEditors.add(_EntryEditor(
+              entry: e,
+              controller: existing.controller,
+              uploading: existing.uploading,
+            ));
+          } else {
+            newEditors.add(_EntryEditor(
+              entry: e,
+              controller: TextEditingController(text: e.description),
+            ));
+          }
+        }
+      } else if (widget.continueYesterday) {
+        final yesterdayStr = DateFormat('yyyy-MM-dd').format(widget.date.subtract(const Duration(days: 1)));
+        final yResult = await repo.getLogByDate(yesterdayStr);
+        if (yResult is ApiSuccess && yResult.data?.entries.isNotEmpty == true) {
+          newEditors = yResult.data!.entries.map((e) {
+            return _EntryEditor(
+              entry: LogEntryModel(
+                id: _uuid.v4(),
+                logId: '${user.id}_$dateStr',
+                projectId: e.projectId,
+                description: '',
+              ),
+              controller: TextEditingController(),
+            );
+          }).toList();
+        } else {
+          newEditors = [_newEditor(user.id, '${user.id}_$dateStr')];
+        }
       } else {
-        _editors = [_newEditor(user.id, '${user.id}_$dateStr')];
+        newEditors = [_newEditor(user.id, '${user.id}_$dateStr')];
       }
+      
+      // Dispose old controllers that are no longer used
+      if (oldEditors != null) {
+        for (final old in oldEditors) {
+          if (!newEditors.any((newEd) => newEd.controller == old.controller)) {
+            old.controller.dispose();
+          }
+        }
+      }
+
+      _editors = newEditors;
       
       setState(() {
         _loading = false;
@@ -90,37 +132,46 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     final dateStr = DateFormat('yyyy-MM-dd').format(widget.date);
     final logId = '${user.id}_$dateStr';
     setState(() {
-      _editors.add(_newEditor(user.id, logId));
+      _editors ??= [];
+      _editors!.add(_newEditor(user.id, logId));
     });
   }
 
   void _removeEntry(int index) {
-    if (_editors.length == 1) return;
+    if (_editors == null || _editors!.length == 1) return;
     setState(() {
-      final removed = _editors[index];
+      final removed = _editors![index];
       // If it's an existing entry from the backend, mark it for deletion
       if (_existingLog != null && _existingLog!.entries.any((e) => e.id == removed.entry.id)) {
         _deletedEntryIds.add(removed.entry.id);
       }
       removed.controller.dispose();
-      _editors.removeAt(index);
+      _editors!.removeAt(index);
     });
   }
 
   Future<void> _save() async {
     final user = ref.read(currentUserProvider);
-    if (user == null || !_isEditable) return;
+    if (user == null || !_isEditable || _editors == null) return;
 
-    final valid = _editors.where((e) =>
-        e.entry.projectId.isNotEmpty &&
-        e.controller.text.trim().isNotEmpty);
-    if (valid.isEmpty) {
+    bool hasValid = false;
+    bool hasInvalid = false;
+    for (final e in _editors!) {
+      final hasProject = e.entry.projectId.isNotEmpty;
+      final hasDesc = e.controller.text.trim().isNotEmpty;
+      if (hasProject && hasDesc) {
+        hasValid = true;
+      } else if (hasProject || hasDesc) {
+        hasInvalid = true;
+      }
+    }
+
+    if (!hasValid || hasInvalid) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please select a project and add a description.'),
+          content: Text('Please ensure all added entries have both a project and a description.'),
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -130,13 +181,10 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     setState(() => _saving = true);
     await Future.delayed(const Duration(milliseconds: 500));
 
-    final validEditors = _editors.where((e) =>
-        e.entry.projectId.isNotEmpty && e.controller.text.trim().isNotEmpty);
-
     final repo = LogRepository();
     
     if (_existingLog != null) {
-      final entriesData = validEditors.map((e) => <String, dynamic>{
+      final entriesData = _editors!.map((e) => <String, dynamic>{
         if (_existingLog!.entries.any((ext) => ext.id == e.entry.id)) 'id': e.entry.id,
         'projectId': e.entry.projectId,
         'description': e.controller.text.trim(),
@@ -148,7 +196,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         deletedEntryIds: _deletedEntryIds,
       );
     } else {
-      final entriesData = validEditors.map((e) => <String, String>{
+      final entriesData = _editors!.map((e) => <String, String>{
         'projectId': e.entry.projectId,
         'description': e.controller.text.trim(),
       }).toList();
@@ -170,23 +218,21 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     }
   }
 
-  Future<bool> _autoSave() async {
+  Future<bool> _autoSave(int targetIndex) async {
     final user = ref.read(currentUserProvider);
-    if (user == null || !_isEditable) return false;
+    if (user == null || !_isEditable || _editors == null) return false;
 
-    for (int i = 0; i < _editors.length; i++) {
-      final editor = _editors[i];
-      if (editor.entry.projectId.isEmpty || editor.controller.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Please select a project and fill in the description for all entries before adding attachments.'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-        return false;
-      }
+    final targetEditor = _editors![targetIndex];
+    if (targetEditor.entry.projectId.isEmpty || targetEditor.controller.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please fill in the project and description before adding an attachment.'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return false;
     }
 
     setState(() => _saving = true);
@@ -194,8 +240,11 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     final repo = LogRepository();
     DailyLogModel? savedLog;
 
+    // Filter to only save valid editors so we don't drop empty ones from state
+    final validEditors = _editors!.where((e) => e.entry.projectId.isNotEmpty && e.controller.text.trim().isNotEmpty).toList();
+
     if (_existingLog != null) {
-      final entriesData = _editors.map((e) => <String, dynamic>{
+      final entriesData = validEditors.map((e) => <String, dynamic>{
         if (_existingLog!.entries.any((ext) => ext.id == e.entry.id)) 'id': e.entry.id,
         'projectId': e.entry.projectId,
         'description': e.controller.text.trim(),
@@ -212,7 +261,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         _deletedEntryIds.clear();
       }
     } else {
-      final entriesData = _editors.map((e) => <String, String>{
+      final entriesData = validEditors.map((e) => <String, String>{
         'projectId': e.entry.projectId,
         'description': e.controller.text.trim(),
       }).toList();
@@ -225,13 +274,20 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 
     if (savedLog != null) {
       _existingLog = savedLog;
-      final updatedEntries = savedLog.entries;
-      for (int i = 0; i < _editors.length; i++) {
-        if (i < updatedEntries.length) {
-          _editors[i] = _EntryEditor(
-            entry: updatedEntries[i],
-            controller: _editors[i].controller,
-            uploading: _editors[i].uploading,
+      // We only update the entry objects in _editors to capture new backend IDs/attachments.
+      // We do NOT replace the controllers or rebuild the entire list.
+      for (int i = 0; i < _editors!.length; i++) {
+        final currentEditor = _editors![i];
+        final backendEntry = savedLog.entries.where((e) => 
+            e.projectId == currentEditor.entry.projectId && 
+            e.description == currentEditor.controller.text.trim()
+        ).firstOrNull;
+        
+        if (backendEntry != null) {
+          _editors![i] = _EntryEditor(
+            entry: backendEntry,
+            controller: currentEditor.controller,
+            uploading: currentEditor.uploading,
           );
         }
       }
@@ -352,10 +408,10 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   }
 
   Future<void> _pickAttachment(int index, AttachmentSource source) async {
-    final saved = await _autoSave();
+    final saved = await _autoSave(index);
     if (!saved) return;
 
-    final entryId = _editors[index].entry.id;
+    final entryId = _editors![index].entry.id;
     if (entryId.isEmpty) return;
 
     String? filePath;
@@ -396,7 +452,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     }
 
     setState(() {
-      _editors[index].uploading = true;
+      _editors![index].uploading = true;
     });
 
     final repo = AttachmentRepository();
@@ -408,7 +464,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 
     if (mounted) {
       setState(() {
-        _editors[index].uploading = false;
+        _editors![index].uploading = false;
       });
 
       if (uploadResult is ApiSuccess) {
@@ -439,7 +495,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 
   Future<void> _deleteAttachment(int index, String attachmentId) async {
     setState(() {
-      _editors[index].uploading = true;
+      _editors![index].uploading = true;
     });
 
     final repo = AttachmentRepository();
@@ -447,7 +503,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 
     if (mounted) {
       setState(() {
-        _editors[index].uploading = false;
+        _editors![index].uploading = false;
       });
 
       if (result is ApiSuccess) {
@@ -509,8 +565,10 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 
   @override
   void dispose() {
-    for (final e in _editors) {
-      e.controller.dispose();
+    if (_editors != null) {
+      for (final e in _editors!) {
+        e.controller.dispose();
+      }
     }
     super.dispose();
   }
@@ -573,21 +631,21 @@ class _LogScreenState extends ConsumerState<LogScreen> {
                     bottom: 24, top: 8, left: AppSpacing.md, right: AppSpacing.md),
                 physics: const BouncingScrollPhysics(),
                 children: [
-                  for (int i = 0; i < _editors.length; i++) ...[
+                  for (int i = 0; i < _editors!.length; i++) ...[
                     _EntrySection(
-                      key: ValueKey(_editors[i].entry.id),
-                      editor: _editors[i],
+                      key: ValueKey(_editors![i].entry.id),
+                      editor: _editors![i],
                       index: i,
-                      totalCount: _editors.length,
-                      projects: myProjects.valueOrNull ?? [],
+                      totalCount: _editors!.length,
+                      projects: myProjects.valueOrNull ?? <ProjectModel>[],
                       isEditable: _isEditable,
                       onRemove: () => _removeEntry(i),
                       onProjectSelected: (projectId) {
                         setState(() {
-                          _editors[i] = _EntryEditor(
-                            entry: _editors[i].entry.copyWith(projectId: projectId),
-                            controller: _editors[i].controller,
-                            uploading: _editors[i].uploading,
+                          _editors![i] = _EntryEditor(
+                            entry: _editors![i].entry.copyWith(projectId: projectId),
+                            controller: _editors![i].controller,
+                            uploading: _editors![i].uploading,
                           );
                         });
                       },

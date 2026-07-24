@@ -6,6 +6,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/models/models.dart';
+import '../../data/repositories/auth_repository.dart';
 
 class AdminEmployeesScreen extends ConsumerWidget {
   const AdminEmployeesScreen({super.key});
@@ -55,8 +56,14 @@ class AdminEmployeesScreen extends ConsumerWidget {
                           ],
                         ),
                         GestureDetector(
-                          onTap: () {
+                          onTap: () async {
+                            await AuthRepository().logout();
                             ref.read(currentUserProvider.notifier).state = null;
+                            ref.invalidate(allUsersProvider);
+                            ref.invalidate(allProjectsProvider);
+                            ref.invalidate(myProjectsProvider);
+                            ref.invalidate(todayLogProvider);
+                            ref.invalidate(yesterdayLogProvider);
                           },
                           child: InitialsAvatar(
                               name: user?.name ?? 'Admin', radius: 20),

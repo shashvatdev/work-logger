@@ -30,7 +30,7 @@ class AdminProjectDetailScreen extends ConsumerWidget {
           );
         }
 
-        final allUsers = usersAsync.valueOrNull ?? [];
+        final allUsers = usersAsync.valueOrNull ?? <UserModel>[];
         final members = allUsers.where((u) => project.memberIds.contains(u.id)).toList();
 
         return Scaffold(

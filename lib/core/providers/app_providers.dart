@@ -26,6 +26,9 @@ final authCheckProvider = FutureProvider<void>((ref) async {
 
 // ─── All Users (for Admin) ───────────────────────────────────────────────────
 final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null || !user.isAdmin) return <UserModel>[];
+  
   final repo = UserRepository();
   final result = await repo.getAllUsers();
   return switch (result) {
@@ -36,6 +39,9 @@ final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
 final allProjectsProvider = FutureProvider<List<ProjectModel>>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return <ProjectModel>[];
+
   final repo = ProjectRepository();
   final result = await repo.getProjects();
   return switch (result) {
@@ -46,7 +52,7 @@ final allProjectsProvider = FutureProvider<List<ProjectModel>>((ref) async {
 
 final myProjectsProvider = FutureProvider<List<ProjectModel>>((ref) async {
   final user = ref.watch(currentUserProvider);
-  if (user == null) return [];
+  if (user == null) return <ProjectModel>[];
   
   final projects = await ref.watch(allProjectsProvider.future);
   if (user.isAdmin) return projects.where((p) => !p.archived).toList();
@@ -100,6 +106,9 @@ final logForDateProvider = FutureProvider.family<DailyLogModel?, ({String uid, D
 
 // ─── Employee Today Status (Admin) ──────────────────────────────────────────
 final employeeTodayStatusProvider = FutureProvider.family<bool, String>((ref, uid) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null || !user.isAdmin) return false;
+
   final repo = UserRepository();
   final result = await repo.getTodayStatus(uid);
   return switch (result) {

@@ -78,6 +78,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         final userJson = data['user'] as Map<String, dynamic>;
         final user = UserModel.fromJson(userJson);
         ref.read(currentUserProvider.notifier).state = user;
+        
+        // Invalidate caching providers to ensure fresh data
+        ref.invalidate(allProjectsProvider);
+        ref.invalidate(myProjectsProvider);
+        ref.invalidate(todayLogProvider);
+        ref.invalidate(yesterdayLogProvider);
+        ref.invalidate(allUsersProvider);
+        
         setState(() => _loading = false);
         context.go(user.isAdmin ? '/admin/employees' : '/home');
         break;

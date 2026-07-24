@@ -3,6 +3,7 @@ import 'dart:developer' as dev;
 import 'package:dio/dio.dart';
 import 'token_storage.dart';
 import 'api_endpoints.dart';
+import 'api_client.dart';
 
 /// ─────────────────────────────────────────────────────────────────────────────
 /// WorkLog Logger Interceptor
@@ -155,6 +156,7 @@ class AuthInterceptor extends QueuedInterceptorsWrapper {
         return handler.resolve(retryResp);
       } catch (_) {
         await TokenStorage.clearAll();
+        ApiClient.onUnauthorized?.call();
         handler.next(err);
       }
     } else {

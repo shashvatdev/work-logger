@@ -131,11 +131,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: _CalendarGrid(
-                  focusedMonth: _focusedMonth,
-                  datesWithLogs: datesWithLogs,
-                  targetUid: targetUid,
-                  onDateTap: (date) {
+                child: datesWithLogsAsync.hasError
+                    ? Center(
+                        child: Text(
+                          'Failed to load calendar data.',
+                          style: TextStyle(color: AppColors.error),
+                        ),
+                      )
+                    : _CalendarGrid(
+                        focusedMonth: _focusedMonth,
+                        datesWithLogs: datesWithLogs,
+                        targetUid: targetUid,
+                        onDateTap: (date) {
                     if (date.isAfterToday) return;
                     context.push('/log/${DateFormat('yyyy-MM-dd').format(date)}');
                   },

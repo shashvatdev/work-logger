@@ -6,6 +6,8 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/utils/date_extensions.dart';
+import '../../data/repositories/auth_repository.dart';
+import '../../data/models/models.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -20,6 +22,16 @@ class HomeScreen extends ConsumerWidget {
 
     if (user == null) return const SizedBox.shrink();
 
+    if (myProjectsAsync.hasError || todayLogAsync.hasError) {
+      return Scaffold(
+        backgroundColor: AppColors.background(context),
+        body: Center(
+          child: Text('Failed to load data. Pull to refresh.', 
+            style: TextStyle(color: AppColors.error)),
+        ),
+      );
+    }
+
     if (myProjectsAsync.isLoading || todayLogAsync.isLoading || yesterdayLogAsync.isLoading) {
       if (!myProjectsAsync.hasValue && !todayLogAsync.hasValue) {
         return Scaffold(
@@ -29,7 +41,7 @@ class HomeScreen extends ConsumerWidget {
       }
     }
 
-    final myProjects = myProjectsAsync.valueOrNull ?? [];
+    final myProjects = myProjectsAsync.valueOrNull ?? <ProjectModel>[];
     final todayLog = todayLogAsync.valueOrNull;
     final yesterdayLog = yesterdayLogAsync.valueOrNull;
 
@@ -39,10 +51,16 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // ── Large Title App Bar ──────────────────────────────────────────
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(myProjectsProvider);
+            ref.invalidate(todayLogProvider);
+            ref.invalidate(yesterdayLogProvider);
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              // ── Large Title App Bar ──────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -158,6 +176,7 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
+    ),
 
       // ── Bottom CTA ─────────────────────────────────────────────────────────
       bottomNavigationBar: SafeArea(
@@ -207,8 +226,13 @@ class _TopActions extends ConsumerWidget {
     return Row(
       children: [
         GestureDetector(
-          onTap: () {
+          onTap: () async {
+            await AuthRepository().logout();
             ref.read(currentUserProvider.notifier).state = null;
+            ref.invalidate(allProjectsProvider);
+            ref.invalidate(myProjectsProvider);
+            ref.invalidate(todayLogProvider);
+            ref.invalidate(yesterdayLogProvider);
           },
           child: InitialsAvatar(name: user.name, radius: 20),
         ),

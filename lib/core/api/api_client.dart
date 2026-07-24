@@ -13,6 +13,8 @@ class ApiClient {
   // Change this to your deployed backend URL when going to production.
   static const String baseUrl = 'https://worktracker.addonshareware.com/api/v1';
 
+  static void Function()? onUnauthorized;
+
   static Dio? _instance;
 
   static Dio get instance {
