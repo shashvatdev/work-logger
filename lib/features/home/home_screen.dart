@@ -161,7 +161,9 @@ class HomeScreen extends ConsumerWidget {
                             for (int i = 0; i < myProjects.length; i++) ...[
                               _ProjectRow(
                                 project: myProjects[i],
-                                onTap: () {},
+                                onTap: () {
+                                  context.push('/log/${today.logKey}?projectId=${myProjects[i].id}');
+                                },
                               ),
                               if (i < myProjects.length - 1)
                                 const AppDivider(indent: AppSpacing.md),

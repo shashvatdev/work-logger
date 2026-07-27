@@ -18,7 +18,15 @@ import '../../core/api/api_exception.dart';
 class LogScreen extends ConsumerStatefulWidget {
   final DateTime date;
   final bool continueYesterday;
-  const LogScreen({super.key, required this.date, this.continueYesterday = false});
+  final String? viewUserId;
+  final String? initialProjectId;
+  const LogScreen({
+    super.key,
+    required this.date,
+    this.continueYesterday = false,
+    this.viewUserId,
+    this.initialProjectId,
+  });
 
   @override
   ConsumerState<LogScreen> createState() => _LogScreenState();
@@ -33,7 +41,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   DailyLogModel? _existingLog;
   final List<String> _deletedEntryIds = [];
 
-  bool get _isEditable => widget.date.isToday;
+  bool get _isEditable => widget.viewUserId == null && widget.date.isToday;
 
   @override
   void initState() {
@@ -48,9 +56,11 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     final repo = LogRepository();
     final dateStr = DateFormat('yyyy-MM-dd').format(widget.date);
     
-    final result = widget.date.isToday
-      ? await repo.getTodayLog()
-      : await repo.getLogByDate(dateStr);
+    final result = widget.viewUserId != null
+        ? await repo.getUserLogByDate(widget.viewUserId!, dateStr)
+        : (widget.date.isToday
+            ? await repo.getTodayLog()
+            : await repo.getLogByDate(dateStr));
       
     if (mounted) {
       if (result is ApiSuccess) {
@@ -76,6 +86,9 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             ));
           }
         }
+      } else if (widget.viewUserId != null || !widget.date.isToday) {
+        // Read-only mode or past date without log: show empty list
+        newEditors = [];
       } else if (widget.continueYesterday) {
         final yesterdayStr = DateFormat('yyyy-MM-dd').format(widget.date.subtract(const Duration(days: 1)));
         final yResult = await repo.getLogByDate(yesterdayStr);
@@ -96,6 +109,35 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         }
       } else {
         newEditors = [_newEditor(user.id, '${user.id}_$dateStr')];
+      }
+
+      // Pre-select project if initialProjectId is passed
+      if (widget.initialProjectId != null &&
+          widget.initialProjectId!.isNotEmpty &&
+          widget.viewUserId == null &&
+          widget.date.isToday) {
+        final match = newEditors
+            .where((ed) => ed.entry.projectId == widget.initialProjectId)
+            .firstOrNull;
+        if (match == null) {
+          final blankEntry = newEditors
+              .where((ed) => ed.entry.projectId.isEmpty)
+              .firstOrNull;
+          if (blankEntry != null) {
+            final idx = newEditors.indexOf(blankEntry);
+            newEditors[idx] = _EntryEditor(
+              entry: blankEntry.entry.copyWith(projectId: widget.initialProjectId!),
+              controller: blankEntry.controller,
+              uploading: blankEntry.uploading,
+            );
+          } else {
+            final newEd = _newEditor(user.id, '${user.id}_$dateStr');
+            newEditors.add(_EntryEditor(
+              entry: newEd.entry.copyWith(projectId: widget.initialProjectId!),
+              controller: newEd.controller,
+            ));
+          }
+        }
       }
       
       // Dispose old controllers that are no longer used
@@ -631,6 +673,29 @@ class _LogScreenState extends ConsumerState<LogScreen> {
                     bottom: 24, top: 8, left: AppSpacing.md, right: AppSpacing.md),
                 physics: const BouncingScrollPhysics(),
                 children: [
+                  if (_editors!.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 80),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.event_note_outlined,
+                              size: 48,
+                              color: AppColors.textSecondary(context).withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No work log submitted for this date.',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.textSecondary(context),
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   for (int i = 0; i < _editors!.length; i++) ...[
                     _EntrySection(
                       key: ValueKey(_editors![i].entry.id),

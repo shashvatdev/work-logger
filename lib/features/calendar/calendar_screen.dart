@@ -143,9 +143,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                         datesWithLogs: datesWithLogs,
                         targetUid: targetUid,
                         onDateTap: (date) {
-                    if (date.isAfterToday) return;
-                    context.push('/log/${DateFormat('yyyy-MM-dd').format(date)}');
-                  },
+                          if (date.isAfterToday) return;
+                          final dateStr = DateFormat('yyyy-MM-dd').format(date);
+                          if (widget.viewUserId != null) {
+                            context.push('/log/$dateStr?viewUserId=${widget.viewUserId}');
+                          } else {
+                            context.push('/log/$dateStr');
+                          }
+                        },
                 ),
               ),
             ),

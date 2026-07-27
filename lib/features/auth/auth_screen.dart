@@ -206,21 +206,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
                     const SizedBox(height: AppSpacing.xl),
 
-                    // ── Demo hint ────────────────────────────────────────────
+                    // ── Demo accounts shortcuts ──────────────────────────────
                     Center(
                       child: Column(
                         children: [
                           Text(
-                            'Demo accounts',
-                            style:
-                                Theme.of(context).textTheme.labelMedium,
+                            'Quick Demo Accounts',
+                            style: Theme.of(context).textTheme.labelMedium,
                           ),
-                          const SizedBox(height: 6),
-                          _demoChip(context, 'Admin', 'shashvat@worklog.app'),
-                          const SizedBox(height: 4),
-                          _demoChip(context, 'Rahul', 'rahul@worklog.app'),
-                          const SizedBox(height: 4),
-                          _demoChip(context, 'Aman', 'aman@worklog.app'),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              _demoChip(context, 'Super Admin', 'admin@gmail.com'),
+                              _demoChip(context, 'Employee 1', 'employee1@gmail.com'),
+                              _demoChip(context, 'Employee 2', 'employee2@gmail.com'),
+                              _demoChip(context, 'Employee 3', 'employee3@gmail.com'),
+                              _demoChip(context, 'Employee 4', 'employee4@gmail.com'),
+                              _demoChip(context, 'Employee 5', 'employee5@gmail.com'),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -236,24 +243,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     );
   }
 
-  Widget _demoChip(BuildContext context, String name, String email) {
-    return GestureDetector(
+  Widget _demoChip(BuildContext context, String name, String email, {String password = '12345'}) {
+    return InkWell(
       onTap: () {
         _emailCtrl.text = email;
-        _passCtrl.text = 'demo1234';
-        setState(() {});
+        _passCtrl.text = password;
+        setState(() => _error = null);
       },
+      borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.accent.withOpacity(0.2),
+            width: 1,
+          ),
         ),
         child: Text(
-          '$name — $email',
+          '$name ($email)',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: AppColors.accent,
-                fontSize: 12,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
               ),
         ),
       ),

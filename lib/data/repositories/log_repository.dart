@@ -42,13 +42,20 @@ class LogRepository {
 
   // ─── GET /logs ─────────────────────────────────────────────────────────────
   Future<ApiResult<Map<String, dynamic>>> getLogs({
+    String? from,
+    String? to,
     int page = 1,
     int pageSize = 20,
   }) async {
     try {
       final resp = await _dio.get(
         ApiEndpoints.logs,
-        queryParameters: {'page': page, 'pageSize': pageSize},
+        queryParameters: {
+          'page': page,
+          'pageSize': pageSize,
+          if (from != null) 'from': from,
+          if (to != null) 'to': to,
+        },
       );
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
       return ApiError(ApiException(

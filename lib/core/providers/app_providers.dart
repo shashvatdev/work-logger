@@ -95,9 +95,15 @@ final yesterdayLogProvider = FutureProvider<DailyLogModel?>((ref) async {
 });
 
 final logForDateProvider = FutureProvider.family<DailyLogModel?, ({String uid, DateTime date})>((ref, args) async {
+  final currentUser = ref.watch(currentUserProvider);
   final dateStr = DateFormat('yyyy-MM-dd').format(args.date);
   final repo = LogRepository();
-  final result = await repo.getUserLogByDate(args.uid, dateStr);
+  final isSelf = currentUser != null && currentUser.id == args.uid;
+
+  final result = isSelf
+      ? await repo.getLogByDate(dateStr)
+      : await repo.getUserLogByDate(args.uid, dateStr);
+
   return switch (result) {
     ApiSuccess(data: final log) => log,
     ApiError(exception: final ex) => throw ex,
@@ -119,15 +125,21 @@ final employeeTodayStatusProvider = FutureProvider.family<bool, String>((ref, ui
 
 // ─── Dates with logs (for calendar) ─────────────────────────────────────────
 final datesWithLogsProvider = FutureProvider.family<Set<String>, ({String uid, int year, int month})>((ref, args) async {
+  final currentUser = ref.watch(currentUserProvider);
   final repo = LogRepository();
-  // Fetch a broad range for the calendar view (e.g. 1 month)
+  
   final from = DateTime(args.year, args.month, 1);
   final to = DateTime(args.year, args.month + 1, 0); // Last day of month
   
   final fromStr = DateFormat('yyyy-MM-dd').format(from);
   final toStr = DateFormat('yyyy-MM-dd').format(to);
   
-  final result = await repo.getUserLogs(args.uid, from: fromStr, to: toStr, pageSize: 100);
+  final isSelf = currentUser != null && currentUser.id == args.uid;
+  
+  final result = isSelf
+      ? await repo.getLogs(from: fromStr, to: toStr, pageSize: 100)
+      : await repo.getUserLogs(args.uid, from: fromStr, to: toStr, pageSize: 100);
+
   return switch (result) {
     ApiSuccess(data: final data) => (data['logs'] as List).map((l) => l['logDate'] as String).toSet(),
     ApiError(exception: final ex) => throw ex,
