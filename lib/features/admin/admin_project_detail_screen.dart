@@ -121,7 +121,9 @@ class AdminProjectDetailScreen extends ConsumerWidget {
                       date: e['date'] ?? '',
                       userName: e['userName'] ?? '',
                       description: e['description'] ?? '',
+                      timeSpent: e['timeSpent'] ?? e['hoursSpent'] ?? e['duration'],
                     )).toList();
+
 
                     if (timeline.isEmpty) {
                       return const SliverToBoxAdapter(
@@ -370,12 +372,15 @@ class _TimelineEntry {
   final String date;
   final String userName;
   final String description;
+  final String? timeSpent;
   const _TimelineEntry({
     required this.date,
     required this.userName,
     required this.description,
+    this.timeSpent,
   });
 }
+
 
 class _TimelineItem extends StatelessWidget {
   final _TimelineEntry entry;
@@ -458,17 +463,57 @@ class _TimelineItem extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        entry.userName,
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelLarge
-                            ?.copyWith(
-                              color: AppColors.accent,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
+                      Row(
+                        children: [
+                          Text(
+                            entry.userName,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                          ),
+                          if (entry.timeSpent != null &&
+                              entry.timeSpent!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.accent.withOpacity(0.25),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.access_time_filled_rounded,
+                                      size: 10, color: AppColors.accent),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    entry.timeSpent!,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: AppColors.accent,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 10,
+                                        ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ],
+                        ],
                       ),
+
                       const SizedBox(height: 4),
                       Text(
                         entry.description,

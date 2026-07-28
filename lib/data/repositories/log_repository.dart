@@ -76,8 +76,9 @@ class LogRepository {
 
   // ─── POST /logs ────────────────────────────────────────────────────────────
   Future<ApiResult<DailyLogModel>> createLog({
-    required List<Map<String, String>> entries,
+    required List<Map<String, dynamic>> entries,
   }) async {
+
     try {
       final resp = await _dio.post(
         ApiEndpoints.logs,

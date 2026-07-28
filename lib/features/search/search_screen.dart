@@ -194,6 +194,37 @@ class _SearchResultCard extends ConsumerWidget {
           Row(
             children: [
               ChipLabel(label: result.projectName, color: AppColors.projectColor(result.projectId)),
+              if ((result.timeSpent ?? result.hoursSpent ?? result.duration) != null &&
+                  (result.timeSpent ?? result.hoursSpent ?? result.duration).toString().isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.accent.withOpacity(0.25),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.access_time_filled_rounded,
+                          size: 10, color: AppColors.accent),
+                      const SizedBox(width: 3),
+                      Text(
+                        (result.timeSpent ?? result.hoursSpent ?? result.duration).toString(),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const Spacer(),
               Text(
                 dateDisplay,
@@ -203,6 +234,7 @@ class _SearchResultCard extends ConsumerWidget {
               ),
             ],
           ),
+
           const SizedBox(height: AppSpacing.sm),
           if (showEmployee) ...[
             Text(

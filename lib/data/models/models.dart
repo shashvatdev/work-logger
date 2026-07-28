@@ -186,6 +186,7 @@ class LogEntryModel {
   final String projectId;
   final String? projectName;
   String description;
+  String? timeSpent;
   final List<AttachmentModel> attachments;
 
   LogEntryModel({
@@ -194,6 +195,7 @@ class LogEntryModel {
     required this.projectId,
     this.projectName,
     required this.description,
+    this.timeSpent,
     this.attachments = const [],
   });
 
@@ -205,6 +207,7 @@ class LogEntryModel {
       projectId: json['projectId'] as String,
       projectName: json['projectName'] as String?,
       description: json['description'] as String,
+      timeSpent: json['timeSpent'] as String? ?? json['hoursSpent'] as String? ?? json['duration'] as String?,
       attachments:
           attachmentsList.map((a) => AttachmentModel.fromJson(a)).toList(),
     );
@@ -214,11 +217,13 @@ class LogEntryModel {
         if (id.isNotEmpty) 'id': id,
         'projectId': projectId,
         'description': description,
+        if (timeSpent != null && timeSpent!.isNotEmpty) 'timeSpent': timeSpent,
       };
 
   LogEntryModel copyWith({
     String? projectId,
     String? description,
+    String? timeSpent,
     List<AttachmentModel>? attachments,
   }) {
     return LogEntryModel(
@@ -227,6 +232,7 @@ class LogEntryModel {
       projectId: projectId ?? this.projectId,
       projectName: projectName,
       description: description ?? this.description,
+      timeSpent: timeSpent ?? this.timeSpent,
       attachments: attachments ?? this.attachments,
     );
   }

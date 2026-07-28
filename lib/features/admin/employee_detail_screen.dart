@@ -561,16 +561,56 @@ class _TodayStatusCard extends ConsumerWidget {
                               children: [
                                 if (entry.projectName != null &&
                                     entry.projectName!.isNotEmpty)
-                                  Text(
-                                    entry.projectName!,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelLarge
-                                        ?.copyWith(
-                                          color: AppColors.accent,
-                                          fontWeight: FontWeight.w600,
+                                  Row(
+                                    children: [
+                                      Text(
+                                        entry.projectName!,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge
+                                            ?.copyWith(
+                                              color: AppColors.accent,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      if (entry.timeSpent != null &&
+                                          entry.timeSpent!.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.accent.withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: AppColors.accent.withOpacity(0.25),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.access_time_filled_rounded,
+                                                  size: 10, color: AppColors.accent),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                entry.timeSpent!,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: AppColors.accent,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
+                                      ],
+                                    ],
                                   ),
+
                                 Text(
                                   entry.description,
                                   style:

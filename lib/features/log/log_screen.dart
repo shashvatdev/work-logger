@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
@@ -87,13 +88,13 @@ class _LogScreenState extends ConsumerState<LogScreen>
           if (existing != null) {
             newEditors.add(_EntryEditor(
               entry: e,
-              controller: existing.controller,
+              tasks: existing.tasks,
               uploading: existing.uploading,
             ));
           } else {
             newEditors.add(_EntryEditor(
               entry: e,
-              controller: TextEditingController(text: e.description),
+              tasks: _parseTasksFromEntry(e),
             ));
           }
         }
@@ -120,7 +121,7 @@ class _LogScreenState extends ConsumerState<LogScreen>
             newEditors[idx] = _EntryEditor(
               entry: blankEntry.entry
                   .copyWith(projectId: widget.initialProjectId!),
-              controller: blankEntry.controller,
+              tasks: blankEntry.tasks,
               uploading: blankEntry.uploading,
             );
           } else {
@@ -128,17 +129,19 @@ class _LogScreenState extends ConsumerState<LogScreen>
             newEditors.add(_EntryEditor(
               entry: newEd.entry
                   .copyWith(projectId: widget.initialProjectId!),
-              controller: newEd.controller,
+              tasks: newEd.tasks,
             ));
           }
         }
       }
 
-      // Dispose old controllers that are no longer used
+      // Dispose old task editors that are no longer used
       if (oldEditors != null) {
         for (final old in oldEditors) {
-          if (!newEditors.any((newEd) => newEd.controller == old.controller)) {
-            old.controller.dispose();
+          if (!newEditors.any((newEd) => newEd.tasks == old.tasks)) {
+            for (final t in old.tasks) {
+              t.dispose();
+            }
           }
         }
       }
@@ -159,7 +162,7 @@ class _LogScreenState extends ConsumerState<LogScreen>
         projectId: defaultProjectId,
         description: '',
       ),
-      controller: TextEditingController(),
+      tasks: [_TaskItemEditor()],
     );
   }
 
@@ -200,7 +203,9 @@ class _LogScreenState extends ConsumerState<LogScreen>
           _existingLog!.entries.any((e) => e.id == removed.entry.id)) {
         _deletedEntryIds.add(removed.entry.id);
       }
-      removed.controller.dispose();
+      for (final t in removed.tasks) {
+        t.dispose();
+      }
       _editors!.removeAt(index);
     });
   }
@@ -213,7 +218,7 @@ class _LogScreenState extends ConsumerState<LogScreen>
     bool hasInvalid = false;
     for (final e in _editors!) {
       final hasProject = e.entry.projectId.isNotEmpty;
-      final hasDesc = e.controller.text.trim().isNotEmpty;
+      final hasDesc = e.tasks.any((t) => t.descCtrl.text.trim().isNotEmpty);
       if (hasProject && hasDesc) {
         hasValid = true;
       } else if (hasProject || hasDesc) {
@@ -225,7 +230,7 @@ class _LogScreenState extends ConsumerState<LogScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-              'Please ensure all entries have both a project and a description.'),
+              'Please ensure all entries have both a project and task description.'),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -236,66 +241,92 @@ class _LogScreenState extends ConsumerState<LogScreen>
     }
 
     setState(() => _saving = true);
-    await Future.delayed(const Duration(milliseconds: 500));
 
     final repo = LogRepository();
-    ApiResult<DailyLogModel> result;
+    DailyLogModel? savedLog;
+
+    final validEditors = _editors!
+        .where((e) =>
+            e.entry.projectId.isNotEmpty &&
+            e.tasks.any((t) => t.descCtrl.text.trim().isNotEmpty))
+        .toList();
 
     if (_existingLog != null) {
-      final entriesData = _editors!.map((e) => <String, dynamic>{
-            if (_existingLog!.entries.any((ext) => ext.id == e.entry.id))
-              'id': e.entry.id,
-            'projectId': e.entry.projectId,
-            'description': e.controller.text.trim(),
-          }).toList();
+      final entriesData = validEditors.map((e) {
+        final desc = _compileTasksDescription(e.tasks);
+        final totalTime = _calculateTotalTime(e.tasks, e.entry.timeSpent);
+        return <String, dynamic>{
+          if (_existingLog!.entries.any((ext) => ext.id == e.entry.id))
+            'id': e.entry.id,
+          'projectId': e.entry.projectId,
+          'description': desc,
+          if (totalTime.isNotEmpty) 'timeSpent': totalTime,
+        };
+      }).toList();
 
-      result = await repo.updateLog(
+      final result = await repo.updateLog(
         logId: _existingLog!.id,
         entries: entriesData,
         deletedEntryIds: _deletedEntryIds,
       );
+
+      if (result is ApiSuccess) {
+        savedLog = result.data;
+        _deletedEntryIds.clear();
+      }
     } else {
-      final entriesData = _editors!.map((e) => <String, String>{
-            'projectId': e.entry.projectId,
-            'description': e.controller.text.trim(),
-          }).toList();
-      result = await repo.createLog(entries: entriesData);
+      final entriesData = validEditors.map((e) {
+        final desc = _compileTasksDescription(e.tasks);
+        final totalTime = _calculateTotalTime(e.tasks, e.entry.timeSpent);
+        return <String, dynamic>{
+          'projectId': e.entry.projectId,
+          'description': desc,
+          if (totalTime.isNotEmpty) 'timeSpent': totalTime,
+        };
+      }).toList();
+
+      final result = await repo.createLog(entries: entriesData);
+      if (result is ApiSuccess) {
+        savedLog = result.data;
+      }
     }
 
-    if (result is ApiError) {
-      final errorMsg = (result as ApiError).error.message;
+    if (savedLog != null) {
+      _existingLog = savedLog;
+      for (int i = 0; i < _editors!.length; i++) {
+        final currentEditor = _editors![i];
+        final backendEntry = savedLog.entries
+            .where((e) => e.projectId == currentEditor.entry.projectId)
+            .firstOrNull;
+
+        if (backendEntry != null) {
+          _editors![i] = _EntryEditor(
+            entry: backendEntry,
+            tasks: currentEditor.tasks,
+            uploading: currentEditor.uploading,
+          );
+        }
+      }
+      ref.invalidate(todayLogProvider);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _saved = true;
+        });
+        _savedAnimCtrl.forward(from: 0.0);
+        await Future.delayed(const Duration(milliseconds: 1400));
+        if (mounted) {
+          _savedAnimCtrl.reverse();
+          setState(() => _saved = false);
+        }
+      }
+    } else {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMsg.isNotEmpty
-                ? errorMsg
-                : 'Failed to save log. Please try again.'),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
+          const SnackBar(content: Text('Failed to save log progress.')),
         );
       }
-      return;
-    }
-
-    ref.invalidate(todayLogProvider);
-
-    if (mounted) {
-      setState(() {
-        _saving = false;
-        _saved = true;
-      });
-      _savedAnimCtrl.forward(from: 0);
-    }
-
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (mounted) {
-      setState(() => _saved = false);
-      Navigator.of(context).maybePop();
     }
   }
 
@@ -305,11 +336,11 @@ class _LogScreenState extends ConsumerState<LogScreen>
 
     final targetEditor = _editors![targetIndex];
     if (targetEditor.entry.projectId.isEmpty ||
-        targetEditor.controller.text.trim().isEmpty) {
+        !targetEditor.tasks.any((t) => t.descCtrl.text.trim().isNotEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
-              'Please fill in the project and description before adding an attachment.'),
+              'Please fill in the project and task description before adding an attachment.'),
           behavior: SnackBarBehavior.floating,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -327,16 +358,21 @@ class _LogScreenState extends ConsumerState<LogScreen>
     final validEditors = _editors!
         .where((e) =>
             e.entry.projectId.isNotEmpty &&
-            e.controller.text.trim().isNotEmpty)
+            e.tasks.any((t) => t.descCtrl.text.trim().isNotEmpty))
         .toList();
 
     if (_existingLog != null) {
-      final entriesData = validEditors.map((e) => <String, dynamic>{
-            if (_existingLog!.entries.any((ext) => ext.id == e.entry.id))
-              'id': e.entry.id,
-            'projectId': e.entry.projectId,
-            'description': e.controller.text.trim(),
-          }).toList();
+      final entriesData = validEditors.map((e) {
+        final desc = _compileTasksDescription(e.tasks);
+        final totalTime = _calculateTotalTime(e.tasks, e.entry.timeSpent);
+        return <String, dynamic>{
+          if (_existingLog!.entries.any((ext) => ext.id == e.entry.id))
+            'id': e.entry.id,
+          'projectId': e.entry.projectId,
+          'description': desc,
+          if (totalTime.isNotEmpty) 'timeSpent': totalTime,
+        };
+      }).toList();
 
       final result = await repo.updateLog(
         logId: _existingLog!.id,
@@ -349,10 +385,15 @@ class _LogScreenState extends ConsumerState<LogScreen>
         _deletedEntryIds.clear();
       }
     } else {
-      final entriesData = validEditors.map((e) => <String, String>{
-            'projectId': e.entry.projectId,
-            'description': e.controller.text.trim(),
-          }).toList();
+      final entriesData = validEditors.map((e) {
+        final desc = _compileTasksDescription(e.tasks);
+        final totalTime = _calculateTotalTime(e.tasks, e.entry.timeSpent);
+        return <String, dynamic>{
+          'projectId': e.entry.projectId,
+          'description': desc,
+          if (totalTime.isNotEmpty) 'timeSpent': totalTime,
+        };
+      }).toList();
 
       final result = await repo.createLog(entries: entriesData);
       if (result is ApiSuccess) {
@@ -365,15 +406,13 @@ class _LogScreenState extends ConsumerState<LogScreen>
       for (int i = 0; i < _editors!.length; i++) {
         final currentEditor = _editors![i];
         final backendEntry = savedLog.entries
-            .where((e) =>
-                e.projectId == currentEditor.entry.projectId &&
-                e.description == currentEditor.controller.text.trim())
+            .where((e) => e.projectId == currentEditor.entry.projectId)
             .firstOrNull;
 
         if (backendEntry != null) {
           _editors![i] = _EntryEditor(
             entry: backendEntry,
-            controller: currentEditor.controller,
+            tasks: currentEditor.tasks,
             uploading: currentEditor.uploading,
           );
         }
@@ -776,7 +815,9 @@ class _LogScreenState extends ConsumerState<LogScreen>
   void dispose() {
     if (_editors != null) {
       for (final e in _editors!) {
-        e.controller.dispose();
+        for (final t in e.tasks) {
+          t.dispose();
+        }
       }
     }
     _savedAnimCtrl.dispose();
@@ -912,12 +953,13 @@ class _LogScreenState extends ConsumerState<LogScreen>
                                   entry: _editors![i]
                                       .entry
                                       .copyWith(projectId: projectId),
-                                  controller: _editors![i].controller,
+                                  tasks: _editors![i].tasks,
                                   uploading: _editors![i].uploading,
                                 );
                               });
                             },
-                            onChanged: (_) => setState(() {}),
+                            onChanged: () => setState(() {}),
+
                             onAddAttachment: () =>
                                 _showAttachmentPicker(i),
                             onDeleteAttachment: (attachmentId) =>
@@ -925,6 +967,7 @@ class _LogScreenState extends ConsumerState<LogScreen>
                             onTapAttachment: (att) =>
                                 _openAttachment(att),
                           ),
+
                           const SizedBox(height: AppSpacing.md),
                         ],
 
@@ -1058,19 +1101,141 @@ class _LogScreenState extends ConsumerState<LogScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+class _TaskItemEditor {
+  final String id;
+  final TextEditingController descCtrl;
+  final TextEditingController timeCtrl;
+
+  _TaskItemEditor({
+    String? id,
+    String description = '',
+    String timeSpent = '',
+  })  : id = id ?? const Uuid().v4(),
+        descCtrl = TextEditingController(text: description),
+        timeCtrl = TextEditingController(text: timeSpent);
+
+  void dispose() {
+    descCtrl.dispose();
+    timeCtrl.dispose();
+  }
+}
+
 class _EntryEditor {
   final LogEntryModel entry;
-  final TextEditingController controller;
+  final List<_TaskItemEditor> tasks;
   bool uploading;
+
   _EntryEditor({
     required this.entry,
-    required this.controller,
+    required this.tasks,
     this.uploading = false,
   });
 }
 
+List<_TaskItemEditor> _parseTasksFromEntry(LogEntryModel e) {
+  if (e.description.trim().isEmpty) {
+    return [_TaskItemEditor(timeSpent: e.timeSpent ?? '')];
+  }
+
+  final lines = e.description
+      .split('\n')
+      .map((l) => l.trim())
+      .where((l) => l.isNotEmpty)
+      .toList();
+
+  if (lines.length > 1 ||
+      lines.any((l) => l.startsWith('•') || l.startsWith('-'))) {
+    final parsed = <_TaskItemEditor>[];
+    for (final line in lines) {
+      var clean = line;
+      if (clean.startsWith('•')) clean = clean.substring(1).trim();
+      if (clean.startsWith('-')) clean = clean.substring(1).trim();
+
+      String desc = clean;
+      String time = '';
+      final match = RegExp(r'\(([^)]+)\)$').firstMatch(clean);
+      if (match != null) {
+        time = match.group(1) ?? '';
+        desc = clean.substring(0, match.start).trim();
+      }
+      parsed.add(_TaskItemEditor(description: desc, timeSpent: time));
+    }
+    if (parsed.isNotEmpty) return parsed;
+  }
+
+  return [
+    _TaskItemEditor(
+      description: e.description,
+      timeSpent: e.timeSpent ?? '',
+    ),
+  ];
+}
+
+String _compileTasksDescription(List<_TaskItemEditor> tasks) {
+  final valid =
+      tasks.where((t) => t.descCtrl.text.trim().isNotEmpty).toList();
+  if (valid.isEmpty) return '';
+  if (valid.length == 1) {
+    final d = valid.first.descCtrl.text.trim();
+    final time = valid.first.timeCtrl.text.trim();
+    return time.isNotEmpty ? '$d ($time)' : d;
+  }
+  return valid.map((t) {
+    final d = t.descCtrl.text.trim();
+    final time = t.timeCtrl.text.trim();
+    return time.isNotEmpty ? '• $d ($time)' : '• $d';
+  }).join('\n');
+}
+
+String _calculateTotalTime(List<_TaskItemEditor> tasks, String? fallbackTime) {
+  double totalHours = 0;
+  bool foundNumeric = false;
+
+  for (final t in tasks) {
+    final raw = t.timeCtrl.text.trim().toLowerCase();
+    if (raw.isEmpty) continue;
+
+    if (raw.endsWith('h')) {
+      final val = double.tryParse(raw.replaceAll('h', '').trim());
+      if (val != null) {
+        totalHours += val;
+        foundNumeric = true;
+      }
+    } else if (raw.endsWith('m')) {
+      final val = double.tryParse(raw.replaceAll('m', '').trim());
+      if (val != null) {
+        totalHours += val / 60.0;
+        foundNumeric = true;
+      }
+    } else {
+      final val = double.tryParse(raw);
+      if (val != null) {
+        totalHours += val;
+        foundNumeric = true;
+      }
+    }
+  }
+
+  if (foundNumeric && totalHours > 0) {
+    if (totalHours == totalHours.roundToDouble()) {
+      return '${totalHours.toInt()}h';
+    } else {
+      return '${totalHours.toStringAsFixed(1)}h';
+    }
+  }
+
+  final nonNumeric = tasks
+      .map((t) => t.timeCtrl.text.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  if (nonNumeric.isNotEmpty) {
+    return nonNumeric.join(', ');
+  }
+  return fallbackTime ?? '';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-/// Premium entry section card
+/// Premium entry section card with multiple tasks support
 // ─────────────────────────────────────────────────────────────────────────────
 class _EntrySection extends StatefulWidget {
   final _EntryEditor editor;
@@ -1081,7 +1246,7 @@ class _EntrySection extends StatefulWidget {
   final bool isEditable;
   final VoidCallback onRemove;
   final ValueChanged<String> onProjectSelected;
-  final ValueChanged<String> onChanged;
+  final VoidCallback onChanged;
   final VoidCallback onAddAttachment;
   final ValueChanged<String> onDeleteAttachment;
   final ValueChanged<AttachmentModel> onTapAttachment;
@@ -1102,7 +1267,6 @@ class _EntrySection extends StatefulWidget {
     required this.onTapAttachment,
   });
 
-
   @override
   State<_EntrySection> createState() => _EntrySectionState();
 }
@@ -1116,6 +1280,9 @@ class _EntrySectionState extends State<_EntrySection> {
     final projectColor = entry.projectId.isNotEmpty
         ? AppColors.projectColor(entry.projectId)
         : AppColors.accent;
+
+    final calculatedTime = _calculateTotalTime(
+        widget.editor.tasks, entry.timeSpent);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -1144,7 +1311,7 @@ class _EntrySectionState extends State<_EntrySection> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Project selector ─────────────────────────────────
+                    // ── Project selector & Total time header ─────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.md,
                           AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
@@ -1158,10 +1325,8 @@ class _EntrySectionState extends State<_EntrySection> {
                                     usedProjectIds: widget.usedProjectIds,
                                     onSelected: widget.onProjectSelected,
                                   )
-
                                 : Text(
-                                    selectedProject?.name ??
-                                        'Unknown Project',
+                                    selectedProject?.name ?? 'Unknown Project',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium
@@ -1171,8 +1336,41 @@ class _EntrySectionState extends State<_EntrySection> {
                                         ),
                                   ),
                           ),
-                          if (widget.isEditable &&
-                              widget.totalCount > 1)
+                          if (calculatedTime.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 9, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: projectColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: projectColor.withOpacity(0.3),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.access_time_filled_rounded,
+                                      size: 12, color: projectColor),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    calculatedTime,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: projectColor,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 11,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          if (widget.isEditable && widget.totalCount > 1)
                             GestureDetector(
                               onTap: widget.onRemove,
                               child: Container(
@@ -1183,7 +1381,7 @@ class _EntrySectionState extends State<_EntrySection> {
                                       AppSpacing.radiusXs),
                                 ),
                                 child: Icon(
-                                  Icons.remove_rounded,
+                                  Icons.delete_outline_rounded,
                                   color: AppColors.error,
                                   size: 16,
                                 ),
@@ -1195,56 +1393,103 @@ class _EntrySectionState extends State<_EntrySection> {
 
                     const AppDivider(),
 
-                    // ── Text field ────────────────────────────────────────
+                    // ── Tasks list section ────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.md,
-                          AppSpacing.sm, AppSpacing.md, AppSpacing.md),
-                      child: widget.isEditable
-                          ? TextField(
-                              controller: widget.editor.controller,
-                              maxLines: null,
-                              minLines: 4,
-                              onChanged: widget.onChanged,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.copyWith(height: 1.65),
-                              decoration: const InputDecoration(
-                                hintText: 'What did you work on today?',
-                                filled: false,
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
+                          AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'TASKS LOGGED',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: AppColors.textSecondary(context),
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.8,
+                                      fontSize: 10,
+                                    ),
                               ),
-                            )
-                          : Text(
-                              widget.editor.controller.text.isNotEmpty
-                                  ? widget.editor.controller.text
-                                  : entry.description,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge
-                                  ?.copyWith(height: 1.65),
-                            ),
-                    ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface(context),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${widget.editor.tasks.length}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        color: AppColors.textSecondary(context),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
 
-                    // ── Quick presets ─────────────────────────────────────
-                    if (widget.isEditable) ...[
-                      const AppDivider(indent: AppSpacing.md),
-                      _QuickPresets(
-                        onSelect: (preset) {
-                          final current =
-                              widget.editor.controller.text;
-                          widget.editor.controller.text =
-                              current.isEmpty
-                                  ? preset
-                                  : '$current\n$preset';
-                          widget.onChanged(
-                              widget.editor.controller.text);
-                        },
+                          // List of task items
+                          for (int k = 0; k < widget.editor.tasks.length; k++) ...[
+                            _buildTaskItemRow(context, k),
+                            if (k < widget.editor.tasks.length - 1)
+                              const SizedBox(height: AppSpacing.xs + 2),
+                          ],
+
+                          // Add Task Button (when editable)
+                          if (widget.isEditable) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  widget.editor.tasks.add(_TaskItemEditor());
+                                });
+                                widget.onChanged();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 8, horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent.withOpacity(0.06),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.accent.withOpacity(0.25),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.add_rounded,
+                                        size: 16, color: AppColors.accent),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Add Task',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: AppColors.accent,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
+                    ),
 
                     // ── Attachments ───────────────────────────────────────
                     const AppDivider(indent: AppSpacing.md),
@@ -1260,6 +1505,546 @@ class _EntrySectionState extends State<_EntrySection> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTaskItemRow(BuildContext context, int taskIndex) {
+    final task = widget.editor.tasks[taskIndex];
+
+    if (!widget.isEditable) {
+      final desc = task.descCtrl.text.trim();
+      final time = task.timeCtrl.text.trim();
+      if (desc.isEmpty && time.isEmpty) return const SizedBox.shrink();
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Icon(Icons.circle, size: 5, color: AppColors.accent),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                desc,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(height: 1.5),
+              ),
+            ),
+            if (time.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  time,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.elevated(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.separator(context),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Task Bullet Icon
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Icon(Icons.check_circle_outline_rounded,
+                size: 16, color: AppColors.accent),
+          ),
+          const SizedBox(width: 8),
+
+          // Task Description Text Field
+          Expanded(
+            child: TextField(
+              controller: task.descCtrl,
+              maxLines: null,
+              minLines: 1,
+              onChanged: (_) {
+                setState(() {});
+                widget.onChanged();
+              },
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(height: 1.4),
+              decoration: const InputDecoration(
+                hintText: 'Task description...',
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 4),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Task Time Picker Button
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: GestureDetector(
+              onTap: () => _showTimePickerSheet(context, task),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: task.timeCtrl.text.isNotEmpty
+                      ? AppColors.accent.withOpacity(0.12)
+                      : AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: task.timeCtrl.text.isNotEmpty
+                        ? AppColors.accent.withOpacity(0.4)
+                        : AppColors.separator(context),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.access_time_rounded,
+                      size: 12,
+                      color: task.timeCtrl.text.isNotEmpty
+                          ? AppColors.accent
+                          : AppColors.textSecondary(context),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      task.timeCtrl.text.isNotEmpty
+                          ? task.timeCtrl.text
+                          : 'Time...',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: task.timeCtrl.text.isNotEmpty
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                            color: task.timeCtrl.text.isNotEmpty
+                                ? AppColors.accent
+                                : AppColors.textSecondary(context),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+
+          // Delete Task Item Button
+          if (widget.editor.tasks.length > 1) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  task.dispose();
+                  widget.editor.tasks.removeAt(taskIndex);
+                });
+                widget.onChanged();
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6, left: 4, right: 4),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 16,
+                  color: AppColors.textSecondary(context),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+
+    );
+  }
+
+  void _showTimePickerSheet(BuildContext context, _TaskItemEditor task) {
+    int hrs = 0;
+    int mins = 0;
+
+    final raw = task.timeCtrl.text.trim().toLowerCase();
+    if (raw.isNotEmpty) {
+      final hMatch = RegExp(r'(\d+(?:\.\d+)?)\s*h').firstMatch(raw);
+      final mMatch = RegExp(r'(\d+)\s*m').firstMatch(raw);
+
+      if (hMatch != null) {
+        final hVal = double.tryParse(hMatch.group(1) ?? '0') ?? 0;
+        hrs = hVal.toInt();
+        if (hVal % 1 != 0) {
+          mins = ((hVal % 1) * 60).round();
+        }
+      }
+      if (mMatch != null) {
+        mins = int.tryParse(mMatch.group(1) ?? '0') ?? mins;
+      }
+      if (hMatch == null && mMatch == null) {
+        final val = double.tryParse(raw);
+        if (val != null) {
+          hrs = val.toInt();
+          if (val % 1 != 0) mins = ((val % 1) * 60).round();
+        }
+      }
+    }
+
+    final hrsCtrl =
+        TextEditingController(text: hrs > 0 ? hrs.toString() : '');
+    final minsCtrl =
+        TextEditingController(text: mins > 0 ? mins.toString() : '');
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void updatePreset(int h, int m) {
+              hrsCtrl.text = h > 0 ? h.toString() : '';
+              minsCtrl.text = m > 0 ? m.toString() : '';
+              setSheetState(() {});
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.elevated(sheetCtx),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SheetHandle(
+                          title: 'Select Time Spent',
+                          subtitle: 'Enter hours and minutes for this task',
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+
+                        // Numeric Inputs Row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Hours Box
+                            _buildNumberBox(
+                              context: sheetCtx,
+                              label: 'HOURS',
+                              controller: hrsCtrl,
+                              hint: '0',
+                              onChanged: (_) => setSheetState(() {}),
+                              onIncrement: () {
+                                final current =
+                                    int.tryParse(hrsCtrl.text) ?? 0;
+                                hrsCtrl.text = (current + 1).toString();
+                                setSheetState(() {});
+                              },
+                              onDecrement: () {
+                                final current =
+                                    int.tryParse(hrsCtrl.text) ?? 0;
+                                if (current > 0) {
+                                  hrsCtrl.text = (current - 1 > 0
+                                      ? (current - 1).toString()
+                                      : '');
+                                  setSheetState(() {});
+                                }
+                              },
+                            ),
+
+                            const Padding(
+                              padding: EdgeInsets.only(top: 18, left: 12, right: 12),
+                              child: Text(
+                                ':',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.accent,
+                                ),
+                              ),
+                            ),
+
+                            // Minutes Box
+                            _buildNumberBox(
+                              context: sheetCtx,
+                              label: 'MINUTES',
+                              controller: minsCtrl,
+                              hint: '00',
+                              onChanged: (_) => setSheetState(() {}),
+                              onIncrement: () {
+                                final current =
+                                    int.tryParse(minsCtrl.text) ?? 0;
+                                final next = (current + 15) % 60;
+                                if (current + 15 >= 60) {
+                                  final h = int.tryParse(hrsCtrl.text) ?? 0;
+                                  hrsCtrl.text = (h + 1).toString();
+                                }
+                                minsCtrl.text = next > 0 ? next.toString() : '';
+                                setSheetState(() {});
+                              },
+                              onDecrement: () {
+                                final current =
+                                    int.tryParse(minsCtrl.text) ?? 0;
+                                final prev = (current - 15) < 0
+                                    ? 45
+                                    : (current - 15);
+                                minsCtrl.text = prev > 0 ? prev.toString() : '';
+                                setSheetState(() {});
+                              },
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: AppSpacing.lg),
+
+                        // Quick presets chips
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
+                            children: [
+                              _buildPresetChip(
+                                  '15m', () => updatePreset(0, 15)),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                  '30m', () => updatePreset(0, 30)),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                  '45m', () => updatePreset(0, 45)),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                  '1h', () => updatePreset(1, 0)),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                  '1.5h', () => updatePreset(1, 30)),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                  '2h', () => updatePreset(2, 0)),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                  '3h', () => updatePreset(3, 0)),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                  '4h', () => updatePreset(4, 0)),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: AppSpacing.lg),
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            if (task.timeCtrl.text.isNotEmpty) ...[
+                              Expanded(
+                                flex: 1,
+                                child: OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 14),
+                                    side:
+                                        const BorderSide(color: AppColors.error),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: () {
+                                    task.timeCtrl.text = '';
+                                    setState(() {});
+                                    widget.onChanged();
+                                    Navigator.pop(sheetCtx);
+                                  },
+                                  child: const Text('Clear',
+                                      style: TextStyle(color: AppColors.error)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Expanded(
+                              flex: 2,
+                              child: PremiumButton(
+                                label: 'Apply Duration',
+                                onPressed: () {
+                                  final h =
+                                      int.tryParse(hrsCtrl.text.trim()) ?? 0;
+                                  final m =
+                                      int.tryParse(minsCtrl.text.trim()) ?? 0;
+
+                                  String formatted = '';
+                                  if (h > 0 && m > 0) {
+                                    formatted = '${h}h ${m}m';
+                                  } else if (h > 0) {
+                                    formatted = '${h}h';
+                                  } else if (m > 0) {
+                                    formatted = '${m}m';
+                                  }
+
+                                  task.timeCtrl.text = formatted;
+                                  setState(() {});
+                                  widget.onChanged();
+                                  Navigator.pop(sheetCtx);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildNumberBox({
+    required BuildContext context,
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    required ValueChanged<String> onChanged,
+    required VoidCallback onIncrement,
+    required VoidCallback onDecrement,
+  }) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: AppColors.textSecondary(context),
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+                fontSize: 10,
+              ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: 95,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.accent.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: onIncrement,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 2),
+                  child: Icon(Icons.keyboard_arrow_up_rounded,
+                      color: AppColors.accent, size: 22),
+                ),
+              ),
+              const SizedBox(height: 2),
+              SizedBox(
+                height: 38,
+                child: Center(
+                  child: TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    textAlign: TextAlign.center,
+                    textAlignVertical: TextAlignVertical.center,
+                    onChanged: onChanged,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.accent,
+                          height: 1.0,
+                        ),
+                    decoration: InputDecoration(
+                      hintText: hint,
+                      hintStyle: TextStyle(
+                        color: AppColors.textTertiary(context),
+                        fontWeight: FontWeight.w400,
+                        height: 1.0,
+                      ),
+                      isCollapsed: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              GestureDetector(
+                onTap: onDecrement,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 2),
+                  child: Icon(Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.accent, size: 22),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPresetChip(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.accent.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.accent.withOpacity(0.25),
+            width: 0.8,
+          ),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.accent,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
           ),
         ),
       ),
@@ -1349,7 +2134,6 @@ class _AttachmentRow extends StatelessWidget {
                     onDelete: () => onDelete(att.id),
                     onTap: onTap,
                   );
-
                 },
               ),
             ),
