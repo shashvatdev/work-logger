@@ -14,17 +14,27 @@ class AppDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
+    final isAdmin = user?.isAdmin == true;
 
     return Drawer(
       backgroundColor: AppColors.background(context),
+      elevation: 0,
       child: SafeArea(
         child: Column(
           children: [
-            // ── Drawer Header ──────────────────────────────────────────────
+            // ── Premium Header ─────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.elevated(context),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.accent.withOpacity(0.08),
+                    AppColors.accentDeep.withOpacity(0.04),
+                  ],
+                ),
                 border: Border(
                   bottom: BorderSide(
                     color: AppColors.separator(context),
@@ -32,49 +42,40 @@ class AppDrawer extends ConsumerWidget {
                   ),
                 ),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  InitialsAvatar(
-                    name: user?.name ?? 'User',
-                    radius: 26,
+                  Row(
+                    children: [
+                      InitialsAvatar(
+                        name: user?.name ?? 'User',
+                        radius: 28,
+                        showRing: true,
+                      ),
+                      const Spacer(),
+                      ChipLabel(
+                        label: isAdmin ? 'Admin' : 'Employee',
+                        color: isAdmin
+                            ? AppColors.accent
+                            : AppColors.textSecondary(context),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user?.name ?? 'WorkNote User',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: AppSpacing.sm + 2),
+                  Text(
+                    user?.name ?? 'WorkNote User',
+                    style: Theme.of(context).textTheme.titleLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    user?.email ?? '',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary(context),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user?.email ?? '',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: AppColors.textSecondary(context),
-                              ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        ChipLabel(
-                          label: user?.isAdmin == true ? 'Admin' : 'Employee',
-                          color: user?.isAdmin == true
-                              ? AppColors.accent
-                              : AppColors.textSecondary(context),
-                        ),
-                      ],
-                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -84,7 +85,7 @@ class AppDrawer extends ConsumerWidget {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs,
+                  horizontal: AppSpacing.sm,
                   vertical: AppSpacing.sm,
                 ),
                 children: [
@@ -94,17 +95,21 @@ class AppDrawer extends ConsumerWidget {
                   const _DarkModeTile(),
 
                   const SizedBox(height: AppSpacing.xs),
-                  const AppDivider(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm),
+                    child: const AppDivider(),
+                  ),
 
                   _SectionHeader(title: 'ACCOUNT'),
-                  
-                  // Change Password (Functional)
+
+                  // Change Password
                   _DrawerTile(
                     icon: Icons.lock_reset_outlined,
                     title: 'Change Password',
-                    subtitle: 'Update your account password',
+                    subtitle: 'Update your credentials',
                     onTap: () {
-                      Navigator.pop(context); // Close drawer
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -114,32 +119,35 @@ class AppDrawer extends ConsumerWidget {
                     },
                   ),
 
-                  // Logout (Functional)
+                  // Logout
                   _DrawerTile(
                     icon: Icons.logout_rounded,
                     title: 'Logout',
-                    subtitle: 'Sign out of current session',
-                    iconColor: Colors.orangeAccent,
+                    subtitle: 'Sign out of session',
+                    iconColor: AppColors.warning,
                     onTap: () => _showLogoutDialog(context, ref),
                   ),
 
-                  // Delete Account (Store policy requirement)
+                  // Delete Account
                   _DrawerTile(
                     icon: Icons.delete_forever_outlined,
                     title: 'Delete Account',
-                    subtitle: 'Permanently remove account & data',
+                    subtitle: 'Remove account permanently',
                     iconColor: AppColors.error,
                     textColor: AppColors.error,
                     onTap: () => _showDeleteAccountDialog(context, ref),
                   ),
 
                   const SizedBox(height: AppSpacing.sm),
-                  const AppDivider(),
-                  const SizedBox(height: AppSpacing.sm),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm),
+                    child: const AppDivider(),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
 
-                  _SectionHeader(title: 'STORE POLICIES & LEGAL'),
+                  _SectionHeader(title: 'LEGAL'),
 
-                  // Privacy Policy
                   _DrawerTile(
                     icon: Icons.privacy_tip_outlined,
                     title: 'Privacy Policy',
@@ -156,7 +164,6 @@ class AppDrawer extends ConsumerWidget {
                     ),
                   ),
 
-                  // Terms of Service
                   _DrawerTile(
                     icon: Icons.description_outlined,
                     title: 'Terms of Service',
@@ -172,10 +179,9 @@ class AppDrawer extends ConsumerWidget {
                     ),
                   ),
 
-                  // Data Safety & Protection
                   _DrawerTile(
                     icon: Icons.shield_outlined,
-                    title: 'Data Safety & Encryption',
+                    title: 'Data Safety',
                     subtitle: 'App Store & Play Store compliance',
                     onTap: () => _showPolicyDialog(
                       context,
@@ -188,11 +194,10 @@ class AppDrawer extends ConsumerWidget {
                     ),
                   ),
 
-                  // Help & Support
                   _DrawerTile(
                     icon: Icons.help_outline_rounded,
                     title: 'Help & Support',
-                    subtitle: 'Contact support team',
+                    subtitle: 'Contact the support team',
                     onTap: () => _showPolicyDialog(
                       context,
                       title: 'Help & Support',
@@ -208,11 +213,11 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
 
-            // ── Drawer Footer ──────────────────────────────────────────────
+            // ── Footer ────────────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.md,
-                vertical: AppSpacing.sm,
+                vertical: AppSpacing.sm + 2,
               ),
               decoration: BoxDecoration(
                 border: Border(
@@ -222,22 +227,42 @@ class AppDrawer extends ConsumerWidget {
                   ),
                 ),
               ),
-              child: Column(
+              child: Row(
                 children: [
-                  Text(
-                    'WorkNote v1.0.0 (1)',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppColors.textSecondary(context),
-                          fontWeight: FontWeight.w600,
-                        ),
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      gradient: AppColors.accentGradient,
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.radiusSm),
+                    ),
+                    child: const Icon(Icons.edit_note_rounded,
+                        color: Colors.white, size: 16),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '© 2026 WorkNote Inc. All rights reserved.',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.textSecondary(context).withOpacity(0.7),
-                          fontSize: 10,
-                        ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WorkNote',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                            ),
+                      ),
+                      Text(
+                        'v1.0.0 · © 2026',
+                        style:
+                            Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: AppColors.textSecondary(context),
+                                  fontSize: 10,
+                                ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -248,12 +273,11 @@ class AppDrawer extends ConsumerWidget {
     );
   }
 
-  // ── Logout Action ────────────────────────────────────────────────────────
+  // ── Logout Action ─────────────────────────────────────────────────────────
   void _showLogoutDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.elevated(ctx),
         title: const Text('Logout'),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
@@ -266,8 +290,8 @@ class AppDrawer extends ConsumerWidget {
               backgroundColor: AppColors.accent,
             ),
             onPressed: () async {
-              Navigator.pop(ctx); // Close dialog
-              Navigator.pop(context); // Close drawer
+              final router = GoRouter.of(context);
+              Navigator.pop(ctx);
 
               await AuthRepository().logout();
               ref.read(currentUserProvider.notifier).state = null;
@@ -276,23 +300,21 @@ class AppDrawer extends ConsumerWidget {
               ref.invalidate(todayLogProvider);
               ref.invalidate(allUsersProvider);
 
-              if (context.mounted) {
-                context.go('/auth');
-              }
+              router.go('/auth');
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Logout', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  // ── Delete Account Action (Play Store & App Store Requirement) ───────────
+  // ── Delete Account Action ─────────────────────────────────────────────────
   void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.elevated(ctx),
         title: Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.error),
@@ -314,26 +336,24 @@ class AppDrawer extends ConsumerWidget {
               backgroundColor: AppColors.error,
             ),
             onPressed: () async {
+              final router = GoRouter.of(context);
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(ctx);
-              Navigator.pop(context);
 
-              // Perform logout and notify user about deletion request
               await AuthRepository().logout();
               ref.read(currentUserProvider.notifier).state = null;
               ref.invalidate(allProjectsProvider);
               ref.invalidate(myProjectsProvider);
               ref.invalidate(todayLogProvider);
 
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                        'Account deletion request submitted. Session ended.'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                context.go('/auth');
-              }
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Account deletion request submitted. Session ended.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              router.go('/auth');
             },
             child: const Text('Delete Account',
                 style: TextStyle(color: Colors.white)),
@@ -343,7 +363,7 @@ class AppDrawer extends ConsumerWidget {
     );
   }
 
-  // ── Generic Policy Dialog ────────────────────────────────────────────────
+  // ── Generic Policy Dialog ─────────────────────────────────────────────────
   void _showPolicyDialog(
     BuildContext context, {
     required String title,
@@ -352,12 +372,11 @@ class AppDrawer extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.elevated(ctx),
         title: Text(title),
         content: SingleChildScrollView(
           child: Text(
             content,
-            style: Theme.of(ctx).textTheme.bodyMedium,
+            style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(height: 1.7),
           ),
         ),
         actions: [
@@ -371,6 +390,7 @@ class AppDrawer extends ConsumerWidget {
   }
 }
 
+// ─── Section Header ──────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   const _SectionHeader({required this.title});
@@ -378,13 +398,14 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md,
+          AppSpacing.md, AppSpacing.xs),
       child: Text(
         title,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: AppColors.textSecondary(context),
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.0,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
               fontSize: 10,
             ),
       ),
@@ -392,7 +413,8 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _DrawerTile extends StatelessWidget {
+// ─── Drawer Tile ─────────────────────────────────────────────────────────────
+class _DrawerTile extends StatefulWidget {
   final IconData icon;
   final String title;
   final String subtitle;
@@ -410,38 +432,103 @@ class _DrawerTile extends StatelessWidget {
   });
 
   @override
+  State<_DrawerTile> createState() => _DrawerTileState();
+}
+
+class _DrawerTileState extends State<_DrawerTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 70),
+        reverseDuration: const Duration(milliseconds: 200));
+    _scale = Tween<double>(begin: 1.0, end: 0.97)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      leading: Icon(
-        icon,
-        color: iconColor ?? AppColors.accent,
-        size: 22,
+    final iconColor = widget.iconColor ?? AppColors.accent;
+
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (context, child) =>
+            Transform.scale(scale: _scale.value, child: child),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 1),
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm, vertical: AppSpacing.xs + 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+                child: Icon(widget.icon, color: iconColor, size: 18),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style:
+                          Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: widget.textColor,
+                                letterSpacing: -0.1,
+                              ),
+                    ),
+                    Text(
+                      widget.subtitle,
+                      style:
+                          Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: AppColors.textSecondary(context),
+                                fontSize: 11,
+                              ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: AppColors.textTertiary(context),
+              ),
+            ],
+          ),
+        ),
       ),
-      title: Text(
-        title,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.textSecondary(context),
-            ),
-      ),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        size: 18,
-        color: AppColors.textSecondary(context),
-      ),
-      onTap: onTap,
     );
   }
 }
 
+// ─── Dark Mode Tile ──────────────────────────────────────────────────────────
 class _DarkModeTile extends ConsumerWidget {
   const _DarkModeTile();
 
@@ -450,31 +537,67 @@ class _DarkModeTile extends ConsumerWidget {
     final currentThemeMode = ref.watch(themeModeProvider);
     final isDark = currentThemeMode == ThemeMode.dark;
 
-    return SwitchListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-      secondary: Icon(
-        isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-        color: AppColors.accent,
-        size: 22,
-      ),
-      title: Text(
-        'Dark Mode',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 1),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm, vertical: AppSpacing.xs + 2),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
             ),
-      ),
-      subtitle: Text(
-        isDark ? 'Dark theme enabled' : 'Light theme enabled',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.textSecondary(context),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Icon(
+                isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                key: ValueKey(isDark),
+                color: AppColors.accent,
+                size: 18,
+              ),
             ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Dark Mode',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.1,
+                      ),
+                ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Align(
+                    key: ValueKey(isDark),
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      isDark ? 'Dark theme enabled' : 'Light theme enabled',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: AppColors.textSecondary(context),
+                            fontSize: 11,
+                          ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: isDark,
+            activeColor: AppColors.accent,
+            onChanged: (bool value) {
+              ref.read(themeModeProvider.notifier).toggleDarkMode(value);
+            },
+          ),
+        ],
       ),
-      activeThumbColor: AppColors.accent,
-      value: isDark,
-      onChanged: (bool value) {
-        ref.read(themeModeProvider.notifier).toggleDarkMode(value);
-      },
     );
   }
 }

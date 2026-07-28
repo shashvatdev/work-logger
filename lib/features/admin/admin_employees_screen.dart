@@ -173,7 +173,10 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                           children: [
                             Text(
                               'Team',
-                              style: Theme.of(context).textTheme.displayLarge,
+                              style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -1.0,
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -226,12 +229,27 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
             ),
 
             if (filtered.isEmpty && _state.isLoading)
-              const SliverToBoxAdapter(
-                child: Center(
-                    child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: CircularProgressIndicator(),
-                )),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: SurfaceCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: List.generate(
+                        6,
+                        (index) => Column(
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
+                              child: SkeletonRow(),
+                            ),
+                            if (index < 5) const AppDivider(indent: 72),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               )
             else if (filtered.isEmpty)
               SliverToBoxAdapter(
@@ -256,13 +274,19 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.md,
                         AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-                    child: Text(
-                      'ACTIVE MEMBERS (${active.length})',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            fontSize: 11,
-                            letterSpacing: 0.8,
-                            color: AppColors.textSecondary(context),
-                          ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle_outline, size: 14, color: AppColors.textSecondary(context)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ACTIVE MEMBERS (${active.length})',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                                color: AppColors.textSecondary(context),
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -275,10 +299,13 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                       child: Column(
                         children: [
                           for (int i = 0; i < active.length; i++) ...[
-                            _EmployeeRow(
-                              employee: active[i],
-                              onTap: () => context
-                                  .push('/admin/employees/${active[i].id}'),
+                            StaggeredItem(
+                              index: i,
+                              child: _EmployeeRow(
+                                employee: active[i],
+                                onTap: () => context
+                                    .push('/admin/employees/${active[i].id}'),
+                              ),
                             ),
                             if (i < active.length - 1)
                               const AppDivider(indent: 72),
@@ -296,13 +323,19 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.md,
                         AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
-                    child: Text(
-                      'DEACTIVATED EMPLOYEES (${deactivated.length})',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            fontSize: 11,
-                            letterSpacing: 0.8,
-                            color: AppColors.error,
-                          ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.error),
+                        const SizedBox(width: 4),
+                        Text(
+                          'DEACTIVATED EMPLOYEES (${deactivated.length})',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                                color: AppColors.error,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -315,10 +348,13 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                       child: Column(
                         children: [
                           for (int i = 0; i < deactivated.length; i++) ...[
-                            _EmployeeRow(
-                              employee: deactivated[i],
-                              onTap: () => context.push(
-                                  '/admin/employees/${deactivated[i].id}'),
+                            StaggeredItem(
+                              index: i,
+                              child: _EmployeeRow(
+                                employee: deactivated[i],
+                                onTap: () => context.push(
+                                    '/admin/employees/${deactivated[i].id}'),
+                              ),
                             ),
                             if (i < deactivated.length - 1)
                               const AppDivider(indent: 72),
@@ -350,22 +386,50 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
 }
 
 // ─── Add Button ──────────────────────────────────────────────────────────────
-class _AddButton extends StatelessWidget {
+class _AddButton extends StatefulWidget {
   final VoidCallback onTap;
   const _AddButton({required this.onTap});
 
   @override
+  State<_AddButton> createState() => _AddButtonState();
+}
+
+class _AddButtonState extends State<_AddButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 150),
+    lowerBound: 0.9,
+    upperBound: 1.0,
+    value: 1.0,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: AppColors.accent,
-          borderRadius: BorderRadius.circular(10),
+      onTapDown: (_) => _controller.reverse(),
+      onTapUp: (_) {
+        _controller.forward();
+        widget.onTap();
+      },
+      onTapCancel: () => _controller.forward(),
+      child: ScaleTransition(
+        scale: _controller,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            gradient: AppColors.accentGradient,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: AppColors.accentShadow,
+          ),
+          child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
         ),
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
       ),
     );
   }
@@ -384,9 +448,10 @@ class _TodayStatusSummary extends StatelessWidget {
         children: [
           Expanded(
             child: _StatCell(
-              value: '$logged',
+              value: logged,
               label: 'Updated Today',
               color: AppColors.logDot,
+              icon: Icons.check_circle_outline,
             ),
           ),
           Container(
@@ -396,9 +461,10 @@ class _TodayStatusSummary extends StatelessWidget {
           ),
           Expanded(
             child: _StatCell(
-              value: '$notLogged',
+              value: notLogged,
               label: 'No Update',
               color: AppColors.textSecondary(context),
+              icon: Icons.access_time,
             ),
           ),
         ],
@@ -408,28 +474,48 @@ class _TodayStatusSummary extends StatelessWidget {
 }
 
 class _StatCell extends StatelessWidget {
-  final String value;
+  final int value;
   final String label;
   final Color color;
-  const _StatCell(
-      {required this.value, required this.label, required this.color});
+  final IconData icon;
+  const _StatCell({
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w300,
-              ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: AppSpacing.sm),
+            AnimatedCounter(
+              value: value,
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w300,
+                  ),
+            ),
+          ],
         ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: AppColors.textSecondary(context),
-              ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            StatusDot(active: label == 'Updated Today', size: 6),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.textSecondary(context),
+                  ),
+            ),
+          ],
         ),
       ],
     );
@@ -437,22 +523,52 @@ class _StatCell extends StatelessWidget {
 }
 
 // ─── Search Bar ───────────────────────────────────────────────────────────────
-class _SearchBar extends StatelessWidget {
+class _SearchBar extends StatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   const _SearchBar({required this.controller, required this.onChanged});
 
   @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  final FocusNode _focusNode = FocusNode();
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      setState(() => _isFocused = _focusNode.hasFocus);
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 40,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutBack,
+      height: 46,
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+        border: Border.all(
+          color: _isFocused ? AppColors.accent : Colors.transparent,
+          width: _isFocused ? 2 : 1,
+        ),
+        boxShadow: _isFocused ? AppColors.accentShadow : null,
       ),
       child: TextField(
-        controller: controller,
-        onChanged: onChanged,
+        controller: widget.controller,
+        focusNode: _focusNode,
+        onChanged: widget.onChanged,
         style: Theme.of(context).textTheme.bodyMedium,
         decoration: InputDecoration(
           hintText: 'Search name or email…',
@@ -460,10 +576,9 @@ class _SearchBar extends StatelessWidget {
                 color: AppColors.textSecondary(context),
               ),
           prefixIcon: Icon(Icons.search_rounded,
-              size: 18, color: AppColors.textSecondary(context)),
+              size: 20, color: _isFocused ? AppColors.accent : AppColors.textSecondary(context)),
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
@@ -485,7 +600,7 @@ class _EmployeeRow extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md, vertical: 6),
-        leading: InitialsAvatar(name: employee.name, radius: 20),
+        leading: InitialsAvatar(name: employee.name, radius: 20, showRing: false),
         title: Row(
           children: [
             Expanded(
@@ -521,8 +636,11 @@ class _EmployeeRow extends StatelessWidget {
             ],
           ],
         ),
-        trailing: Icon(Icons.chevron_right_rounded,
-            color: AppColors.textSecondary(context), size: 20),
+        trailing: Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.xs),
+          child: Icon(Icons.chevron_right_rounded,
+              color: AppColors.textSecondary(context), size: 20),
+        ),
         onTap: onTap,
       ),
     );

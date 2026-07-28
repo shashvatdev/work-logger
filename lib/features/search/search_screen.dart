@@ -67,35 +67,41 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0,
                   AppSpacing.md, AppSpacing.sm),
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                height: 50,
                 decoration: BoxDecoration(
                   color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(
-                          left: 14, right: 8),
-                      child: Icon(Icons.search_rounded,
-                          color: AppColors.textSecondary(context), size: 20),
+                          left: 16, right: 12),
+                      child: AnimatedScale(
+                        duration: const Duration(milliseconds: 200),
+                        scale: _focus.hasFocus ? 1.1 : 1.0,
+                        child: Icon(Icons.search_rounded,
+                            color: _focus.hasFocus ? AppColors.accent : AppColors.textSecondary(context), size: 20),
+                      ),
                     ),
                     Expanded(
                       child: TextField(
                         controller: _ctrl,
                         focusNode: _focus,
                         onChanged: (v) {
+                          setState(() {});
                           ref.read(searchQueryProvider.notifier).state = v;
                         },
                         style: Theme.of(context).textTheme.bodyLarge,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           hintText: 'Search logs, projects, team...',
                           filled: false,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                              vertical: 14),
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                     ),
@@ -104,9 +110,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         onTap: () {
                           _ctrl.clear();
                           ref.read(searchQueryProvider.notifier).state = '';
+                          setState(() {});
                         },
                         child: Padding(
-                          padding: const EdgeInsets.only(right: 14),
+                          padding: const EdgeInsets.only(right: 16, left: 8),
                           child: Icon(Icons.cancel_rounded,
                               color: AppColors.textSecondary(context),
                               size: 18),
@@ -132,7 +139,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             ),
                           )
                         : resultsAsync.isLoading
-                            ? const Center(key: ValueKey('loading'), child: CircularProgressIndicator())
+                            ? ListView.separated(
+                                key: const ValueKey('loading'),
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                itemCount: 3,
+                                separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                                itemBuilder: (_, __) => const SkeletonLoader(width: double.infinity, height: 120, borderRadius: 16),
+                              )
                             : results.isEmpty
                                 ? _NoResultsState(
                                     key: const ValueKey('noResults'),
@@ -147,7 +160,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: AppSpacing.sm),
                             itemBuilder: (context, i) =>
-                                _SearchResultCard(result: results[i]),
+                                StaggeredItem(index: i, child: _SearchResultCard(result: results[i])),
                           ),
               ),
             ),
@@ -180,7 +193,7 @@ class _SearchResultCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              ChipLabel(label: result.projectName),
+              ChipLabel(label: result.projectName, color: AppColors.projectColor(result.projectId)),
               const Spacer(),
               Text(
                 dateDisplay,
@@ -194,9 +207,9 @@ class _SearchResultCard extends ConsumerWidget {
           if (showEmployee) ...[
             Text(
               result.userName,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: AppColors.textSecondary(context),
-                    fontSize: 13,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
             const SizedBox(height: 4),
@@ -225,27 +238,11 @@ class _EmptySearchState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_rounded,
-              size: 48, color: AppColors.textSecondary(context)),
-          const SizedBox(height: 16),
-          Text(
-            'Search your work logs',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.textSecondary(context),
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Find by keyword, project or team member.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary(context),
-                ),
-          ),
-        ],
+    return const Center(
+      child: EmptyStateWidget(
+        icon: Icons.manage_search_rounded,
+        title: 'Search your work',
+        subtitle: 'Find by keyword, project, or team member.',
       ),
     );
   }
@@ -257,20 +254,11 @@ class _NoResultsState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded,
-              size: 48, color: AppColors.textSecondary(context)),
-          const SizedBox(height: 16),
-          Text(
-            'No results for "$query"',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.textSecondary(context),
-                ),
-          ),
-        ],
+    return const Center(
+      child: EmptyStateWidget(
+        icon: Icons.search_off_rounded,
+        title: 'No results',
+        subtitle: 'Try different keywords or date range.',
       ),
     );
   }

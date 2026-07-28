@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/widgets/widgets.dart';
 import '../../core/utils/date_extensions.dart';
 
 class CalendarScreen extends ConsumerStatefulWidget {
@@ -60,11 +61,19 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.viewUserId != null
-                  ? targetUser?.name ?? 'Calendar'
-                  : 'Calendar',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                if (widget.viewUserId != null && targetUser != null) ...[
+                  InitialsAvatar(name: targetUser.name, radius: 14, showRing: true),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                Text(
+                  widget.viewUserId != null
+                      ? targetUser?.name ?? 'Calendar'
+                      : 'Calendar',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ],
             ),
             if (widget.viewUserId != null && targetUser != null)
               Text(
@@ -76,6 +85,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               ),
           ],
         ),
+
       ),
       body: SafeArea(
         child: Column(
@@ -95,10 +105,27 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     }),
                   ),
                   Expanded(
-                    child: Text(
-                      _focusedMonth.monthYear,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (Widget child, Animation<double> animation) {
+                        final offsetAnimation = Tween<Offset>(
+                          begin: const Offset(0.2, 0.0),
+                          end: Offset.zero,
+                        ).animate(animation);
+                        return SlideTransition(
+                          position: offsetAnimation,
+                          child: FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Text(
+                        _focusedMonth.monthYear,
+                        key: ValueKey<String>(_focusedMonth.monthYear),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -121,15 +148,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: Row(
-                children: const ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-                    .map((d) => Expanded(
+                children: const ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+                    .asMap().entries.map((entry) => Expanded(
                           child: Center(
                             child: Text(
-                              d,
+                              entry.value,
                               style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondaryLight,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: entry.key == 6 ? AppColors.accent : AppColors.textSecondaryLight,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ),
@@ -246,7 +274,7 @@ class _CalendarGrid extends StatelessWidget {
   }
 }
 
-class _CalendarCell extends StatelessWidget {
+class _CalendarCell extends StatefulWidget {
   final DateTime date;
   final bool hasLog;
   final VoidCallback onTap;
@@ -258,48 +286,63 @@ class _CalendarCell extends StatelessWidget {
   });
 
   @override
+  State<_CalendarCell> createState() => _CalendarCellState();
+}
+
+class _CalendarCellState extends State<_CalendarCell> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+  @override
+  void dispose() { _anim.dispose(); super.dispose(); }
+
+  @override
   Widget build(BuildContext context) {
-    final isToday = date.isToday;
-    final isFuture = date.isAfterToday;
+    final isToday = widget.date.isToday;
+    final isFuture = widget.date.isAfterToday;
 
     return GestureDetector(
-      onTap: isFuture ? null : onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: isToday ? AppColors.accent : Colors.transparent,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${date.day}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight:
-                        isToday ? FontWeight.w600 : FontWeight.w400,
-                    color: isToday
-                        ? Colors.white
-                        : isFuture
-                            ? AppColors.textSecondary(context)
-                                .withOpacity(0.3)
+      onTapDown: isFuture ? null : (_) => _anim.forward(),
+      onTapUp: isFuture ? null : (_) { _anim.reverse(); widget.onTap(); },
+      onTapCancel: () => _anim.reverse(),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1.0, end: 0.92).animate(_anim),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: isToday ? AppColors.accentGradient : null,
+          ),
+          child: Opacity(
+            opacity: isFuture ? 0.3 : 1.0,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${widget.date.day}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight:
+                            isToday ? FontWeight.w600 : FontWeight.w400,
+                        color: isToday
+                            ? Colors.white
                             : AppColors.textPrimary(context),
+                      ),
+                ),
+                const SizedBox(height: 2),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: widget.hasLog ? 7 : 5,
+                  height: widget.hasLog ? 7 : 5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.hasLog
+                        ? (isToday ? Colors.white : AppColors.success)
+                        : Colors.transparent,
+                    boxShadow: widget.hasLog && !isToday ? [BoxShadow(color: AppColors.success.withOpacity(0.4), blurRadius: 4)] : null,
                   ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: hasLog
-                    ? (isToday ? Colors.white.withOpacity(0.8) : AppColors.logDot)
-                    : Colors.transparent,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -319,25 +362,32 @@ class _LegendItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isBorder ? Colors.transparent : color,
-            border: isBorder ? Border.all(color: color, width: 2) : null,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isBorder ? Colors.transparent : color,
+              border: isBorder ? Border.all(color: color, width: 2) : null,
+            ),
           ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontSize: 11,
-              ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontSize: 11,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -16,7 +16,12 @@ class AdminProjectListScreen extends ConsumerWidget {
     final projectsAsync = ref.watch(allProjectsProvider);
 
     return projectsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => ListView.separated(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        itemCount: 5,
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+        itemBuilder: (_, __) => const SkeletonRow(),
+      ),
       error: (e, st) => Center(child: Text(e.toString())),
       data: (allProjects) {
         final active = allProjects.where((p) => !p.archived).toList();
@@ -41,7 +46,10 @@ class AdminProjectListScreen extends ConsumerWidget {
                       children: [
                         Text(
                           'Projects',
-                          style: Theme.of(context).textTheme.displayLarge,
+                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -1.0,
+                              ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -64,13 +72,19 @@ class AdminProjectListScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                     AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-                child: Text(
-                  'ACTIVE',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontSize: 11,
-                        letterSpacing: 0.8,
-                        color: AppColors.textSecondary(context),
-                      ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 16, color: AppColors.textSecondary(context)),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'ACTIVE',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontSize: 11,
+                            letterSpacing: 0.8,
+                            color: AppColors.textSecondary(context),
+                          ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -79,17 +93,13 @@ class AdminProjectListScreen extends ConsumerWidget {
               sliver: SliverToBoxAdapter(
                 child: active.isEmpty
                     ? SurfaceCard(
-                        child: Center(
+                        child: const Center(
                           child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                            child: Text(
-                              'No active projects.\nCreate one to get started.',
-                              textAlign: TextAlign.center,
-                              style:
-                                  Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: AppColors.textSecondary(context),
-                                      ),
+                            padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                            child: EmptyStateWidget(
+                              icon: Icons.folder_open_rounded,
+                              title: 'No active projects',
+                              subtitle: 'Create one to get started.',
                             ),
                           ),
                         ),
@@ -99,9 +109,12 @@ class AdminProjectListScreen extends ConsumerWidget {
                         child: Column(
                           children: [
                             for (int i = 0; i < active.length; i++) ...[
-                              _ProjectRow(project: active[i]),
+                              StaggeredItem(
+                                index: i,
+                                child: _ProjectRow(project: active[i]),
+                              ),
                               if (i < active.length - 1)
-                                const AppDivider(indent: AppSpacing.md),
+                                const AppDivider(indent: 68),
                             ],
                           ],
                         ),
@@ -115,13 +128,19 @@ class AdminProjectListScreen extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                       AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-                  child: Text(
-                    'ARCHIVED',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          fontSize: 11,
-                          letterSpacing: 0.8,
-                          color: AppColors.textSecondary(context),
-                        ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.archive_outlined, size: 16, color: AppColors.textSecondary(context)),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'ARCHIVED',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              fontSize: 11,
+                              letterSpacing: 0.8,
+                              color: AppColors.textSecondary(context),
+                            ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -133,9 +152,12 @@ class AdminProjectListScreen extends ConsumerWidget {
                     child: Column(
                       children: [
                         for (int i = 0; i < archived.length; i++) ...[
-                          _ProjectRow(project: archived[i], archived: true),
+                          StaggeredItem(
+                            index: i,
+                            child: _ProjectRow(project: archived[i], archived: true),
+                          ),
                           if (i < archived.length - 1)
-                            const AppDivider(indent: AppSpacing.md),
+                            const AppDivider(indent: 68),
                         ],
                       ],
                     ),
@@ -159,62 +181,97 @@ class _ProjectRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: 8),
-      title: Text(
-        project.name,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: archived ? AppColors.textSecondary(context) : null,
-            ),
+    final projectColor = AppColors.projectColor(project.id);
+    return Opacity(
+      opacity: archived ? 0.5 : 1.0,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: 8),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: projectColor.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(Icons.folder_rounded, color: projectColor, size: 22),
+        ),
+        title: Text(
+          project.name,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: archived ? AppColors.textSecondary(context) : null,
+              ),
+        ),
+        subtitle: Text(
+          '${project.memberCount} members',
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontSize: 12,
+              ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (archived)
+              ChipLabel(
+                  label: 'Archived',
+                  color: AppColors.textSecondary(context)),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary(context), size: 20),
+          ],
+        ),
+        onTap: () => context.push('/admin/projects/${project.id}'),
       ),
-      subtitle: Text(
-        '${project.memberCount} members',
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontSize: 12,
-            ),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (archived)
-            ChipLabel(
-                label: 'Archived',
-                color: AppColors.textSecondary(context)),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right_rounded,
-              color: AppColors.textSecondary(context), size: 20),
-        ],
-      ),
-      onTap: () => context.push('/admin/projects/${project.id}'),
     );
   }
 }
 
-class _CreateProjectButton extends ConsumerWidget {
+class _CreateProjectButton extends ConsumerStatefulWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CreateProjectButton> createState() => _CreateProjectButtonState();
+}
+
+class _CreateProjectButtonState extends ConsumerState<_CreateProjectButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+  
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => _showCreateDialog(context, ref),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: AppColors.accent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-            const SizedBox(width: 4),
-            Text(
-              'New',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
+      onTapDown: (_) => _anim.forward(),
+      onTapUp: (_) {
+        _anim.reverse();
+        _showCreateDialog(context, ref);
+      },
+      onTapCancel: () => _anim.reverse(),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1.0, end: 0.95).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOut)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            gradient: AppColors.accentGradient,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: AppColors.accentShadow,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 4),
+              Text(
+                'New',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -242,34 +299,30 @@ class _CreateProjectButton extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.separator(context),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Text('New Project',
-                    style: Theme.of(context).textTheme.headlineLarge),
+                const SheetHandle(title: 'New Project', subtitle: 'Create a workspace for your team'),
                 const SizedBox(height: AppSpacing.lg),
                 TextField(
                   controller: nameCtrl,
                   autofocus: true,
                   style: Theme.of(context).textTheme.bodyLarge,
-                  decoration:
-                      const InputDecoration(hintText: 'Project name'),
+                  decoration: InputDecoration(
+                    hintText: 'Project name',
+                    filled: true,
+                    fillColor: AppColors.surface(context),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
                   controller: descCtrl,
                   maxLines: 3,
                   style: Theme.of(context).textTheme.bodyLarge,
-                  decoration: const InputDecoration(
-                      hintText: 'Description (optional)'),
+                  decoration: InputDecoration(
+                    hintText: 'Description (optional)',
+                    filled: true,
+                    fillColor: AppColors.surface(context),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 PremiumButton(

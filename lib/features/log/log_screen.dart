@@ -30,7 +30,8 @@ class LogScreen extends ConsumerStatefulWidget {
   ConsumerState<LogScreen> createState() => _LogScreenState();
 }
 
-class _LogScreenState extends ConsumerState<LogScreen> {
+class _LogScreenState extends ConsumerState<LogScreen>
+    with SingleTickerProviderStateMixin {
   final _uuid = const Uuid();
   List<_EntryEditor>? _editors;
   bool _loading = true;
@@ -39,38 +40,50 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   DailyLogModel? _existingLog;
   final List<String> _deletedEntryIds = [];
 
+  // For save success animation
+  late final AnimationController _savedAnimCtrl;
+  late final Animation<double> _savedScale;
+
   bool get _isEditable => widget.viewUserId == null && widget.date.isToday;
 
   @override
   void initState() {
     super.initState();
+    _savedAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _savedScale = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _savedAnimCtrl, curve: Curves.elasticOut),
+    );
     _loadLog();
   }
 
   Future<void> _loadLog() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
-    
+
     final repo = LogRepository();
     final dateStr = DateFormat('yyyy-MM-dd').format(widget.date);
-    
+
     final result = widget.viewUserId != null
         ? await repo.getUserLogByDate(widget.viewUserId!, dateStr)
         : (widget.date.isToday
             ? await repo.getTodayLog()
             : await repo.getLogByDate(dateStr));
-      
+
     if (mounted) {
       if (result is ApiSuccess) {
         _existingLog = result.data;
       }
-      
+
       final oldEditors = _editors;
       List<_EntryEditor> newEditors = [];
 
       if (_existingLog != null && _existingLog!.entries.isNotEmpty) {
         for (final e in _existingLog!.entries) {
-          final existing = oldEditors?.where((ed) => ed.entry.id == e.id).firstOrNull;
+          final existing =
+              oldEditors?.where((ed) => ed.entry.id == e.id).firstOrNull;
           if (existing != null) {
             newEditors.add(_EntryEditor(
               entry: e,
@@ -85,7 +98,6 @@ class _LogScreenState extends ConsumerState<LogScreen> {
           }
         }
       } else if (widget.viewUserId != null || !widget.date.isToday) {
-        // Read-only mode or past date without log: show empty list
         newEditors = [];
       } else {
         newEditors = [_newEditor(user.id, '${user.id}_$dateStr')];
@@ -106,20 +118,22 @@ class _LogScreenState extends ConsumerState<LogScreen> {
           if (blankEntry != null) {
             final idx = newEditors.indexOf(blankEntry);
             newEditors[idx] = _EntryEditor(
-              entry: blankEntry.entry.copyWith(projectId: widget.initialProjectId!),
+              entry: blankEntry.entry
+                  .copyWith(projectId: widget.initialProjectId!),
               controller: blankEntry.controller,
               uploading: blankEntry.uploading,
             );
           } else {
             final newEd = _newEditor(user.id, '${user.id}_$dateStr');
             newEditors.add(_EntryEditor(
-              entry: newEd.entry.copyWith(projectId: widget.initialProjectId!),
+              entry: newEd.entry
+                  .copyWith(projectId: widget.initialProjectId!),
               controller: newEd.controller,
             ));
           }
         }
       }
-      
+
       // Dispose old controllers that are no longer used
       if (oldEditors != null) {
         for (final old in oldEditors) {
@@ -130,19 +144,19 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       }
 
       _editors = newEditors;
-      
+
       setState(() {
         _loading = false;
       });
     }
   }
 
-  _EntryEditor _newEditor(String userId, String logId) {
+  _EntryEditor _newEditor(String userId, String logId, {String defaultProjectId = ''}) {
     return _EntryEditor(
       entry: LogEntryModel(
         id: _uuid.v4(),
         logId: logId,
-        projectId: '',
+        projectId: defaultProjectId,
         description: '',
       ),
       controller: TextEditingController(),
@@ -153,18 +167,37 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     final user = ref.read(currentUserProvider)!;
     final dateStr = DateFormat('yyyy-MM-dd').format(widget.date);
     final logId = '${user.id}_$dateStr';
+
+    final myProjects = ref.read(myProjectsProvider).valueOrNull ?? <ProjectModel>[];
+    final selectedIds = _editors?.map((e) => e.entry.projectId).where((id) => id.isNotEmpty).toSet() ?? {};
+
+    if (myProjects.isNotEmpty && selectedIds.length >= myProjects.length) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('All your assigned projects have already been added.'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
+    final nextAvailable = myProjects.where((p) => !selectedIds.contains(p.id)).firstOrNull;
+
     setState(() {
       _editors ??= [];
-      _editors!.add(_newEditor(user.id, logId));
+      _editors!.add(_newEditor(user.id, logId, defaultProjectId: nextAvailable?.id ?? ''));
     });
   }
+
 
   void _removeEntry(int index) {
     if (_editors == null || _editors!.length == 1) return;
     setState(() {
       final removed = _editors![index];
-      // If it's an existing entry from the backend, mark it for deletion
-      if (_existingLog != null && _existingLog!.entries.any((e) => e.id == removed.entry.id)) {
+      if (_existingLog != null &&
+          _existingLog!.entries.any((e) => e.id == removed.entry.id)) {
         _deletedEntryIds.add(removed.entry.id);
       }
       removed.controller.dispose();
@@ -191,9 +224,11 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     if (!hasValid || hasInvalid) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please ensure all added entries have both a project and a description.'),
+          content: const Text(
+              'Please ensure all entries have both a project and a description.'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -205,14 +240,15 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 
     final repo = LogRepository();
     ApiResult<DailyLogModel> result;
-    
+
     if (_existingLog != null) {
       final entriesData = _editors!.map((e) => <String, dynamic>{
-        if (_existingLog!.entries.any((ext) => ext.id == e.entry.id)) 'id': e.entry.id,
-        'projectId': e.entry.projectId,
-        'description': e.controller.text.trim(),
-      }).toList();
-      
+            if (_existingLog!.entries.any((ext) => ext.id == e.entry.id))
+              'id': e.entry.id,
+            'projectId': e.entry.projectId,
+            'description': e.controller.text.trim(),
+          }).toList();
+
       result = await repo.updateLog(
         logId: _existingLog!.id,
         entries: entriesData,
@@ -220,9 +256,9 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       );
     } else {
       final entriesData = _editors!.map((e) => <String, String>{
-        'projectId': e.entry.projectId,
-        'description': e.controller.text.trim(),
-      }).toList();
+            'projectId': e.entry.projectId,
+            'description': e.controller.text.trim(),
+          }).toList();
       result = await repo.createLog(entries: entriesData);
     }
 
@@ -232,10 +268,13 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMsg.isNotEmpty ? errorMsg : 'Failed to save log. Please try again.'),
-            backgroundColor: Colors.red.shade700,
+            content: Text(errorMsg.isNotEmpty
+                ? errorMsg
+                : 'Failed to save log. Please try again.'),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -250,9 +289,10 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         _saving = false;
         _saved = true;
       });
+      _savedAnimCtrl.forward(from: 0);
     }
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 900));
     if (mounted) {
       setState(() => _saved = false);
       Navigator.of(context).maybePop();
@@ -264,12 +304,15 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     if (user == null || !_isEditable || _editors == null) return false;
 
     final targetEditor = _editors![targetIndex];
-    if (targetEditor.entry.projectId.isEmpty || targetEditor.controller.text.trim().isEmpty) {
+    if (targetEditor.entry.projectId.isEmpty ||
+        targetEditor.controller.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please fill in the project and description before adding an attachment.'),
+          content: const Text(
+              'Please fill in the project and description before adding an attachment.'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -281,15 +324,19 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     final repo = LogRepository();
     DailyLogModel? savedLog;
 
-    // Filter to only save valid editors so we don't drop empty ones from state
-    final validEditors = _editors!.where((e) => e.entry.projectId.isNotEmpty && e.controller.text.trim().isNotEmpty).toList();
+    final validEditors = _editors!
+        .where((e) =>
+            e.entry.projectId.isNotEmpty &&
+            e.controller.text.trim().isNotEmpty)
+        .toList();
 
     if (_existingLog != null) {
       final entriesData = validEditors.map((e) => <String, dynamic>{
-        if (_existingLog!.entries.any((ext) => ext.id == e.entry.id)) 'id': e.entry.id,
-        'projectId': e.entry.projectId,
-        'description': e.controller.text.trim(),
-      }).toList();
+            if (_existingLog!.entries.any((ext) => ext.id == e.entry.id))
+              'id': e.entry.id,
+            'projectId': e.entry.projectId,
+            'description': e.controller.text.trim(),
+          }).toList();
 
       final result = await repo.updateLog(
         logId: _existingLog!.id,
@@ -303,9 +350,9 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       }
     } else {
       final entriesData = validEditors.map((e) => <String, String>{
-        'projectId': e.entry.projectId,
-        'description': e.controller.text.trim(),
-      }).toList();
+            'projectId': e.entry.projectId,
+            'description': e.controller.text.trim(),
+          }).toList();
 
       final result = await repo.createLog(entries: entriesData);
       if (result is ApiSuccess) {
@@ -315,15 +362,14 @@ class _LogScreenState extends ConsumerState<LogScreen> {
 
     if (savedLog != null) {
       _existingLog = savedLog;
-      // We only update the entry objects in _editors to capture new backend IDs/attachments.
-      // We do NOT replace the controllers or rebuild the entire list.
       for (int i = 0; i < _editors!.length; i++) {
         final currentEditor = _editors![i];
-        final backendEntry = savedLog.entries.where((e) => 
-            e.projectId == currentEditor.entry.projectId && 
-            e.description == currentEditor.controller.text.trim()
-        ).firstOrNull;
-        
+        final backendEntry = savedLog.entries
+            .where((e) =>
+                e.projectId == currentEditor.entry.projectId &&
+                e.description == currentEditor.controller.text.trim())
+            .firstOrNull;
+
         if (backendEntry != null) {
           _editors![i] = _EntryEditor(
             entry: backendEntry,
@@ -347,107 +393,69 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   void _showAttachmentPicker(int index) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.elevated(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Material(
-          color: Colors.transparent,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.elevated(context),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 12),
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.separator(context),
-                  borderRadius: BorderRadius.circular(2),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SheetHandle(
+                title: 'Add Attachment',
+                subtitle: 'Choose how you want to select a file',
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md),
+                child: Column(
+                  children: [
+                    _AttachmentOptionTile(
+                      icon: Icons.photo_camera_rounded,
+                      color: AppColors.accent,
+                      title: 'Camera',
+                      subtitle: 'Take a photo',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _pickAttachment(index, AttachmentSource.camera);
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _AttachmentOptionTile(
+                      icon: Icons.photo_library_rounded,
+                      color: const Color(0xFF5856D6),
+                      title: 'Photo Library',
+                      subtitle: 'Select from gallery',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _pickAttachment(index, AttachmentSource.gallery);
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _AttachmentOptionTile(
+                      icon: Icons.insert_drive_file_rounded,
+                      color: AppColors.warning,
+                      title: 'Browse Files',
+                      subtitle: 'Choose a document or PDF',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _pickAttachment(index, AttachmentSource.files);
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Add Attachment',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Choose how you want to select a file',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary(context),
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.photo_camera_rounded, color: Colors.blue, size: 22),
-              ),
-              title: const Text('Camera', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Take a photo using your camera'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickAttachment(index, AttachmentSource.camera);
-              },
-            ),
-            const AppDivider(indent: 72),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.photo_library_rounded, color: Colors.purple, size: 22),
-              ),
-              title: const Text('Photo Library', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Select an image from gallery'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickAttachment(index, AttachmentSource.gallery);
-              },
-            ),
-            const AppDivider(indent: 72),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.insert_drive_file_rounded, color: Colors.orange, size: 22),
-              ),
-              title: const Text('Browse Files', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Choose a document or PDF file'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickAttachment(index, AttachmentSource.files);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Future<void> _pickAttachment(int index, AttachmentSource source) async {
@@ -461,7 +469,8 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     String? fileName;
 
     try {
-      if (source == AttachmentSource.camera || source == AttachmentSource.gallery) {
+      if (source == AttachmentSource.camera ||
+          source == AttachmentSource.gallery) {
         final picker = ImagePicker();
         final XFile? image = await picker.pickImage(
           source: source == AttachmentSource.camera
@@ -517,7 +526,8 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
         _loadLog();
@@ -529,7 +539,8 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -556,7 +567,8 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
         _loadLog();
@@ -568,31 +580,66 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
     }
   }
 
-  Future<void> _openAttachment(String attachmentId) async {
+  Future<void> _openAttachment(AttachmentModel attachment) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.85),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2.5,
+          ),
+        ),
+      ),
+    );
+
     final repo = AttachmentRepository();
-    final result = await repo.getDownloadUrl(attachmentId);
+    final result = await repo.getDownloadUrl(attachment.id);
+
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
     if (result is ApiSuccess) {
       final downloadUrl = result.data['downloadUrl'] as String?;
       if (downloadUrl != null && downloadUrl.isNotEmpty) {
         String fullUrl = downloadUrl;
-        if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
+        if (!downloadUrl.startsWith('http://') &&
+            !downloadUrl.startsWith('https://')) {
           fullUrl = 'https://worktracker.addonshareware.com$downloadUrl';
         }
-        final uri = Uri.parse(fullUrl);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+        final isImage = attachment.type == AttachmentType.image ||
+            _isImageFileName(attachment.fileName);
+
+        if (isImage && mounted) {
+          _showInAppImagePreview(context, attachment, fullUrl);
         } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Could not open attachment url.')),
+          final uri = Uri.parse(fullUrl);
+          try {
+            final launched = await launchUrl(
+              uri,
+              mode: LaunchMode.inAppBrowserView,
             );
+            if (!launched) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          } catch (_) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
           }
         }
       }
@@ -600,11 +647,130 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       if (mounted) {
         final err = (result as ApiError).exception;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to get download link: ${err.message}')),
+          SnackBar(
+              content: Text(
+                  'Failed to get download link: ${err.message}')),
         );
       }
     }
   }
+
+  void _showInAppImagePreview(
+      BuildContext context, AttachmentModel attachment, String imageUrl) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close',
+      barrierColor: Colors.black,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (ctx, anim1, anim2) {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  attachment.fileName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (attachment.fileSizeBytes != null)
+                  Text(
+                    _formatBytes(attachment.fileSizeBytes!),
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.open_in_browser_rounded, color: Colors.white),
+                tooltip: 'Open in browser',
+                onPressed: () async {
+                  final uri = Uri.parse(imageUrl);
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+              ),
+            ],
+          ),
+          body: SafeArea(
+            child: Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                        color: AppColors.accent,
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.broken_image_rounded,
+                            color: Colors.white54, size: 64),
+                        SizedBox(height: 12),
+                        Text('Failed to load image preview',
+                            style: TextStyle(color: Colors.white70)),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isImageFileName(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.bmp');
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB'];
+    var i = 0;
+    double count = bytes.toDouble();
+    while (count >= 1024 && i < suffixes.length - 1) {
+      count /= 1024;
+      i++;
+    }
+    return '${count.toStringAsFixed(1)} ${suffixes[i]}';
+  }
+
 
   @override
   void dispose() {
@@ -613,6 +779,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         e.controller.dispose();
       }
     }
+    _savedAnimCtrl.dispose();
     super.dispose();
   }
 
@@ -624,12 +791,13 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
         backgroundColor: AppColors.background(context),
+        surfaceTintColor: Colors.transparent,
         leading: const BackButton(),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _isEditable ? 'Today\'s Log' : widget.date.shortDate,
+              _isEditable ? "Today's Log" : widget.date.shortDate,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             if (!_isEditable)
@@ -647,17 +815,49 @@ class _LogScreenState extends ConsumerState<LogScreen> {
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusSm),
+                  border: Border.all(
+                    color: AppColors.separator(context),
+                    width: 0.5,
+                  ),
                 ),
-                child: Text(
-                  'Read Only',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.textSecondary(context),
-                        fontSize: 11,
-                      ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline_rounded,
+                        size: 12,
+                        color: AppColors.textSecondary(context)),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Read Only',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(
+                            color: AppColors.textSecondary(context),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_saving && !_saved)
+            Padding(
+              padding:
+                  const EdgeInsets.only(right: AppSpacing.md),
+              child: const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  strokeCap: StrokeCap.round,
                 ),
               ),
             ),
@@ -665,151 +865,199 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       ),
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? _buildSkeleton()
             : Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(
-                    bottom: 24, top: 8, left: AppSpacing.md, right: AppSpacing.md),
-                physics: const BouncingScrollPhysics(),
                 children: [
-                  if (_editors!.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 80),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.event_note_outlined,
-                              size: 48,
-                              color: AppColors.textSecondary(context).withOpacity(0.5),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.only(
+                          bottom: 24,
+                          top: AppSpacing.sm,
+                          left: AppSpacing.md,
+                          right: AppSpacing.md),
+                      physics: const BouncingScrollPhysics(),
+                      children: [
+                        if (_editors!.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 60),
+                            child: EmptyStateWidget(
+                              icon: Icons.event_note_outlined,
+                              title: 'No log for this date',
+                              subtitle:
+                                  'No work entries were submitted for this day.',
+                              iconColor: AppColors.textSecondary(context),
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No work log submitted for this date.',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.textSecondary(context),
-                                  ),
-                            ),
-                          ],
+                          ),
+                        for (int i = 0; i < _editors!.length; i++) ...[
+                          _EntrySection(
+                            key: ValueKey(_editors![i].entry.id),
+                            editor: _editors![i],
+                            index: i,
+                            totalCount: _editors!.length,
+                            projects: myProjects.valueOrNull ??
+                                <ProjectModel>[],
+                            usedProjectIds: _editors!
+                                .where((ed) =>
+                                    ed.entry.id != _editors![i].entry.id &&
+                                    ed.entry.projectId.isNotEmpty)
+                                .map((ed) => ed.entry.projectId)
+                                .toSet(),
+                            isEditable: _isEditable,
+
+
+                            onRemove: () => _removeEntry(i),
+                            onProjectSelected: (projectId) {
+                              setState(() {
+                                _editors![i] = _EntryEditor(
+                                  entry: _editors![i]
+                                      .entry
+                                      .copyWith(projectId: projectId),
+                                  controller: _editors![i].controller,
+                                  uploading: _editors![i].uploading,
+                                );
+                              });
+                            },
+                            onChanged: (_) => setState(() {}),
+                            onAddAttachment: () =>
+                                _showAttachmentPicker(i),
+                            onDeleteAttachment: (attachmentId) =>
+                                _deleteAttachment(i, attachmentId),
+                            onTapAttachment: (att) =>
+                                _openAttachment(att),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                        ],
+
+
+                        // ── Add Another Project button ──────────────────
+                        if (_isEditable)
+                          _AddProjectButton(onTap: _addEntry),
+                      ],
+                    ),
+                  ),
+
+                  // ── Save Bar ───────────────────────────────────────────
+                  if (_isEditable)
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                          AppSpacing.sm, AppSpacing.md, AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.background(context),
+                        border: Border(
+                          top: BorderSide(
+                              color: AppColors.separator(context),
+                              width: 0.5),
                         ),
                       ),
-                    ),
-                  for (int i = 0; i < _editors!.length; i++) ...[
-                    _EntrySection(
-                      key: ValueKey(_editors![i].entry.id),
-                      editor: _editors![i],
-                      index: i,
-                      totalCount: _editors!.length,
-                      projects: myProjects.valueOrNull ?? <ProjectModel>[],
-                      isEditable: _isEditable,
-                      onRemove: () => _removeEntry(i),
-                      onProjectSelected: (projectId) {
-                        setState(() {
-                          _editors![i] = _EntryEditor(
-                            entry: _editors![i].entry.copyWith(projectId: projectId),
-                            controller: _editors![i].controller,
-                            uploading: _editors![i].uploading,
-                          );
-                        });
-                      },
-                      onChanged: (_) => setState(() {}),
-                      onAddAttachment: () => _showAttachmentPicker(i),
-                      onDeleteAttachment: (attachmentId) => _deleteAttachment(i, attachmentId),
-                      onTapAttachment: (attachmentId) => _openAttachment(attachmentId),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                  ],
-
-                  if (_isEditable)
-                    GestureDetector(
-                      onTap: _addEntry,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface(context),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: AppColors.separator(context),
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_rounded,
-                                color: AppColors.accent, size: 20),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Add Another Project',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(color: AppColors.accent),
-                            ),
-                          ],
+                      child: SafeArea(
+                        top: false,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, anim) =>
+                              FadeTransition(
+                                  opacity: anim, child: child),
+                          child: _saved
+                              ? ScaleTransition(
+                                  scale: _savedScale,
+                                  child: Container(
+                                    key: const ValueKey('saved'),
+                                    height: AppSpacing.buttonHeightLg,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          AppColors.success,
+                                          AppColors.success
+                                              .withGreen(185),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(
+                                          AppSpacing.radiusMd),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.success
+                                              .withOpacity(0.3),
+                                          blurRadius: 16,
+                                          offset: const Offset(0, 4),
+                                        )
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Colors.white,
+                                            size: 22),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          'Log Saved',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight:
+                                                    FontWeight.w700,
+                                                fontSize: 16,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : PremiumButton(
+                                  key: const ValueKey('save'),
+                                  label: 'Save Log',
+                                  loading: _saving,
+                                  onPressed: _save,
+                                ),
                         ),
                       ),
                     ),
                 ],
               ),
-            ),
+      ),
+    );
+  }
 
-            if (_isEditable)
-              Container(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: AppColors.background(context),
-                  border: Border(
-                    top: BorderSide(
-                        color: AppColors.separator(context), width: 0.5),
-                  ),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _saved
-                        ? Container(
-                            key: const ValueKey('saved'),
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: AppColors.logDot,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(Icons.check_rounded,
-                                    color: Colors.white, size: 20),
-                                SizedBox(width: 8),
-                                Text('Saved',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 17)),
-                              ],
-                            ),
-                          )
-                        : PremiumButton(
-                            key: const ValueKey('save'),
-                            label: 'Save Log',
-                            loading: _saving,
-                            onPressed: _save,
-                          ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+  Widget _buildSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        children: [
+          SurfaceCard(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLoader(
+                    width: 120, height: 14, borderRadius: 7),
+                const SizedBox(height: AppSpacing.sm),
+                SkeletonLoader(
+                    width: double.infinity, height: 11, borderRadius: 6),
+                const SizedBox(height: 6),
+                SkeletonLoader(
+                    width: 200, height: 11, borderRadius: 6),
+                const SizedBox(height: 6),
+                SkeletonLoader(
+                    width: 160, height: 11, borderRadius: 6),
+                const SizedBox(height: AppSpacing.md),
+                SkeletonLoader(
+                    width: double.infinity, height: 11, borderRadius: 6),
+                const SizedBox(height: 6),
+                SkeletonLoader(
+                    width: 240, height: 11, borderRadius: 6),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 class _EntryEditor {
   final LogEntryModel entry;
   final TextEditingController controller;
@@ -821,18 +1069,22 @@ class _EntryEditor {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+/// Premium entry section card
+// ─────────────────────────────────────────────────────────────────────────────
 class _EntrySection extends StatefulWidget {
   final _EntryEditor editor;
   final int index;
   final int totalCount;
   final List<dynamic> projects;
+  final Set<String> usedProjectIds;
   final bool isEditable;
   final VoidCallback onRemove;
   final ValueChanged<String> onProjectSelected;
   final ValueChanged<String> onChanged;
   final VoidCallback onAddAttachment;
   final ValueChanged<String> onDeleteAttachment;
-  final ValueChanged<String> onTapAttachment;
+  final ValueChanged<AttachmentModel> onTapAttachment;
 
   const _EntrySection({
     super.key,
@@ -840,6 +1092,7 @@ class _EntrySection extends StatefulWidget {
     required this.index,
     required this.totalCount,
     required this.projects,
+    this.usedProjectIds = const {},
     required this.isEditable,
     required this.onRemove,
     required this.onProjectSelected,
@@ -849,199 +1102,310 @@ class _EntrySection extends StatefulWidget {
     required this.onTapAttachment,
   });
 
+
   @override
   State<_EntrySection> createState() => _EntrySectionState();
 }
 
 class _EntrySectionState extends State<_EntrySection> {
-
   @override
   Widget build(BuildContext context) {
     final entry = widget.editor.entry;
-    final selectedProject = widget.projects
-        .where((p) => p.id == entry.projectId)
-        .firstOrNull;
+    final selectedProject =
+        widget.projects.where((p) => p.id == entry.projectId).firstOrNull;
+    final projectColor = entry.projectId.isNotEmpty
+        ? AppColors.projectColor(entry.projectId)
+        : AppColors.accent;
 
-    return SurfaceCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header: Project selector + remove button ───────────────────────
-          Padding(
-            padding:
-                const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
-            child: Row(
-              children: [
-                Expanded(
-                  child: widget.isEditable
-                      ? _ProjectDropdown(
-                          projects: widget.projects,
-                          selectedId: entry.projectId,
-                          onSelected: widget.onProjectSelected,
-                        )
-                      : Text(
-                          selectedProject?.name ?? 'Unknown Project',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                color: AppColors.accent,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                ),
-                if (widget.isEditable && widget.totalCount > 1)
-                  IconButton(
-                    onPressed: widget.onRemove,
-                    icon: Icon(Icons.remove_circle_outline_rounded,
-                        color: AppColors.error, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+      child: SurfaceCard(
+        padding: EdgeInsets.zero,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Left accent bar ────────────────────────────────────────
+              Container(
+                width: 3,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      projectColor,
+                      projectColor.withOpacity(0.5),
+                    ],
                   ),
-              ],
-            ),
-          ),
-
-          const AppDivider(),
-
-          // ── Text field ────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.md),
-            child: widget.isEditable
-                ? TextField(
-                    controller: widget.editor.controller,
-                    maxLines: null,
-                    minLines: 4,
-                    onChanged: widget.onChanged,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          height: 1.6,
-                        ),
-                    decoration: InputDecoration(
-                      hintText: 'What did you work on?',
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  )
-                : Text(
-                    widget.editor.controller.text.isNotEmpty
-                        ? widget.editor.controller.text
-                        : entry.description,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          height: 1.6,
-                        ),
-                  ),
-          ),
-
-          // ── Quick presets (edit mode only) ───────────────────────────────
-          if (widget.isEditable) ...[
-            const AppDivider(indent: AppSpacing.md),
-            _QuickPresets(
-              onSelect: (preset) {
-                final current = widget.editor.controller.text;
-                widget.editor.controller.text =
-                    current.isEmpty ? preset : '$current\n$preset';
-                widget.onChanged(widget.editor.controller.text);
-              },
-            ),
-          ],
-
-          // ── Attachments ───────────────────────────────────────────────────
-          const AppDivider(indent: AppSpacing.md),
-          ListTile(
-            leading: Icon(Icons.attach_file_rounded,
-                color: AppColors.accent, size: 20),
-            title: Text(
-              entry.attachments.isEmpty
-                  ? 'Add Attachment'
-                  : '${entry.attachments.length} attachment(s)',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.accent,
-                  ),
-            ),
-            trailing: widget.isEditable
-                ? (widget.editor.uploading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.accent,
-                        ),
-                      )
-                    : Icon(Icons.chevron_right_rounded,
-                        color: AppColors.textSecondary(context), size: 18))
-                : null,
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: 0),
-            minLeadingWidth: 0,
-            dense: true,
-            onTap: widget.isEditable && !widget.editor.uploading
-                ? widget.onAddAttachment
-                : null,
-          ),
-
-          if (entry.attachments.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.md),
-              child: SizedBox(
-                height: 90,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: entry.attachments.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 14),
-                  itemBuilder: (context, attachmentIndex) {
-                    final att = entry.attachments[attachmentIndex];
-                    return _AttachmentItem(
-                      attachment: att,
-                      isEditable: widget.isEditable,
-                      onDelete: () => widget.onDeleteAttachment(att.id),
-                      onTap: () => widget.onTapAttachment(att.id),
-                    );
-                  },
                 ),
               ),
-            ),
-          ],
-        ],
+              // ── Content ────────────────────────────────────────────────
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Project selector ─────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                          AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: widget.isEditable
+                                ? _ProjectDropdown(
+                                    projects: widget.projects,
+                                    selectedId: entry.projectId,
+                                    usedProjectIds: widget.usedProjectIds,
+                                    onSelected: widget.onProjectSelected,
+                                  )
+
+                                : Text(
+                                    selectedProject?.name ??
+                                        'Unknown Project',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: projectColor,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                          ),
+                          if (widget.isEditable &&
+                              widget.totalCount > 1)
+                            GestureDetector(
+                              onTap: widget.onRemove,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: AppColors.errorSoft,
+                                  borderRadius: BorderRadius.circular(
+                                      AppSpacing.radiusXs),
+                                ),
+                                child: Icon(
+                                  Icons.remove_rounded,
+                                  color: AppColors.error,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    const AppDivider(),
+
+                    // ── Text field ────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                          AppSpacing.sm, AppSpacing.md, AppSpacing.md),
+                      child: widget.isEditable
+                          ? TextField(
+                              controller: widget.editor.controller,
+                              maxLines: null,
+                              minLines: 4,
+                              onChanged: widget.onChanged,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.copyWith(height: 1.65),
+                              decoration: const InputDecoration(
+                                hintText: 'What did you work on today?',
+                                filled: false,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            )
+                          : Text(
+                              widget.editor.controller.text.isNotEmpty
+                                  ? widget.editor.controller.text
+                                  : entry.description,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.copyWith(height: 1.65),
+                            ),
+                    ),
+
+                    // ── Quick presets ─────────────────────────────────────
+                    if (widget.isEditable) ...[
+                      const AppDivider(indent: AppSpacing.md),
+                      _QuickPresets(
+                        onSelect: (preset) {
+                          final current =
+                              widget.editor.controller.text;
+                          widget.editor.controller.text =
+                              current.isEmpty
+                                  ? preset
+                                  : '$current\n$preset';
+                          widget.onChanged(
+                              widget.editor.controller.text);
+                        },
+                      ),
+                    ],
+
+                    // ── Attachments ───────────────────────────────────────
+                    const AppDivider(indent: AppSpacing.md),
+                    _AttachmentRow(
+                      entry: entry,
+                      isEditable: widget.isEditable,
+                      uploading: widget.editor.uploading,
+                      onAdd: widget.onAddAttachment,
+                      onDelete: widget.onDeleteAttachment,
+                      onTap: widget.onTapAttachment,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+class _AttachmentRow extends StatelessWidget {
+  final LogEntryModel entry;
+  final bool isEditable;
+  final bool uploading;
+  final VoidCallback onAdd;
+  final ValueChanged<String> onDelete;
+  final ValueChanged<AttachmentModel> onTap;
+
+  const _AttachmentRow({
+    required this.entry,
+    required this.isEditable,
+    required this.uploading,
+    required this.onAdd,
+    required this.onDelete,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          leading: Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppColors.accentMid,
+              borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
+            ),
+            child: const Icon(Icons.attach_file_rounded,
+                color: AppColors.accent, size: 16),
+          ),
+          title: Text(
+            entry.attachments.isEmpty
+                ? 'Add Attachment'
+                : '${entry.attachments.length} Attachment${entry.attachments.length == 1 ? '' : 's'}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.accent,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          trailing: isEditable
+              ? (uploading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: AppColors.accent,
+                      ),
+                    )
+                  : Icon(Icons.chevron_right_rounded,
+                      color: AppColors.textSecondary(context), size: 18))
+              : null,
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: 0),
+          minLeadingWidth: 0,
+          dense: true,
+          onTap: isEditable && !uploading ? onAdd : null,
+        ),
+        if (entry.attachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.xs,
+                AppSpacing.md, AppSpacing.md),
+            child: SizedBox(
+              height: 90,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: entry.attachments.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: 14),
+                itemBuilder: (context, attachmentIndex) {
+                  final att = entry.attachments[attachmentIndex];
+                  return _AttachmentItem(
+                    attachment: att,
+                    isEditable: isEditable,
+                    onDelete: () => onDelete(att.id),
+                    onTap: onTap,
+                  );
+
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
 class _ProjectDropdown extends StatelessWidget {
   final List<dynamic> projects;
   final String selectedId;
+  final Set<String> usedProjectIds;
   final ValueChanged<String> onSelected;
 
   const _ProjectDropdown({
     required this.projects,
     required this.selectedId,
+    this.usedProjectIds = const {},
     required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    final selected = projects.where((p) => p.id == selectedId).firstOrNull;
+    final selected =
+        projects.where((p) => p.id == selectedId).firstOrNull;
     return GestureDetector(
       onTap: () => _showPicker(context),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            selected?.name ?? 'Select Project',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: selectedId.isEmpty
-                      ? AppColors.textSecondary(context)
-                      : AppColors.accent,
-                  fontWeight: FontWeight.w600,
-                ),
+          if (selectedId.isNotEmpty) ...[
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: AppColors.projectColor(selectedId),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              selected?.name ?? 'Select Project',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: selectedId.isEmpty
+                        ? AppColors.textSecondary(context)
+                        : AppColors.textPrimary(context),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                  ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           const SizedBox(width: 4),
           Icon(
@@ -1057,58 +1421,85 @@ class _ProjectDropdown extends StatelessWidget {
   void _showPicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.elevated(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.separator(context),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Select Project',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            const SizedBox(height: 12),
-            for (final p in projects) ...[
-              ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                title: Text(p.name,
-                    style: Theme.of(context).textTheme.bodyLarge),
-                trailing: p.id == selectedId
-                    ? Icon(Icons.check_rounded,
-                        color: AppColors.accent, size: 20)
-                    : null,
-                onTap: () {
-                  onSelected(p.id);
-                  Navigator.pop(context);
-                },
-              ),
-              if (projects.last.id != p.id)
-                const AppDivider(indent: 20),
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.elevated(context),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SheetHandle(title: 'Select Project'),
+              for (final p in projects) ...[
+                Builder(
+                  builder: (context) {
+                    final isUsed = usedProjectIds.contains(p.id) && p.id != selectedId;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md, vertical: 4),
+                      leading: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: isUsed
+                              ? AppColors.textTertiary(context).withOpacity(0.12)
+                              : AppColors.projectColor(p.id).withOpacity(0.12),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusXs),
+                        ),
+                        child: Icon(Icons.folder_rounded,
+                            color: isUsed
+                                ? AppColors.textTertiary(context)
+                                : AppColors.projectColor(p.id),
+                            size: 16),
+                      ),
+                      title: Text(
+                        p.name,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: isUsed
+                                  ? AppColors.textTertiary(context)
+                                  : AppColors.textPrimary(context),
+                            ),
+                      ),
+                      subtitle: isUsed
+                          ? Text(
+                              'Already selected in another entry',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.textTertiary(context),
+                                    fontSize: 11,
+                                  ),
+                            )
+                          : null,
+                      trailing: p.id == selectedId
+                          ? Icon(Icons.check_rounded,
+                              color: AppColors.accent, size: 20)
+                          : null,
+                      onTap: isUsed
+                          ? null
+                          : () {
+                              onSelected(p.id);
+                              Navigator.pop(context);
+                            },
+                    );
+                  },
+                ),
+                if (projects.last.id != p.id)
+                  const AppDivider(indent: AppSpacing.md + 46),
+              ],
+              const SizedBox(height: AppSpacing.md),
             ],
-            const SizedBox(height: 12),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
 class _QuickPresets extends StatelessWidget {
   final ValueChanged<String> onSelect;
   const _QuickPresets({required this.onSelect});
@@ -1131,38 +1522,20 @@ class _QuickPresets extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Quick tags',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            'QUICK TAGS',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: AppColors.textSecondary(context),
-                  fontSize: 11,
+                  letterSpacing: 1.0,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                 ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           Wrap(
-            spacing: 8,
+            spacing: 6,
             runSpacing: 6,
             children: _presets
-                .map((p) => GestureDetector(
-                      onTap: () => onSelect(p),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface(context),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                              color: AppColors.separator(context),
-                              width: 0.5),
-                        ),
-                        child: Text(
-                          p,
-                          style:
-                              Theme.of(context).textTheme.labelMedium?.copyWith(
-                                    fontSize: 12,
-                                  ),
-                        ),
-                      ),
-                    ))
+                .map((p) => _PresetChip(label: p, onTap: () => onSelect(p)))
                 .toList(),
           ),
         ],
@@ -1171,11 +1544,79 @@ class _QuickPresets extends StatelessWidget {
   }
 }
 
+class _PresetChip extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _PresetChip({required this.label, required this.onTap});
+
+  @override
+  State<_PresetChip> createState() => _PresetChipState();
+}
+
+class _PresetChipState extends State<_PresetChip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 70),
+        reverseDuration: const Duration(milliseconds: 180));
+    _scale = Tween<double>(begin: 1.0, end: 0.94)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (context, child) =>
+            Transform.scale(scale: _scale.value, child: child),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surface(context),
+            borderRadius:
+                BorderRadius.circular(AppSpacing.radiusFull),
+            border: Border.all(
+                color: AppColors.separator(context), width: 0.5),
+          ),
+          child: Text(
+            widget.label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 class _AttachmentItem extends StatelessWidget {
   final AttachmentModel attachment;
   final bool isEditable;
   final VoidCallback onDelete;
-  final VoidCallback onTap;
+  final ValueChanged<AttachmentModel> onTap;
 
   const _AttachmentItem({
     required this.attachment,
@@ -1183,6 +1624,7 @@ class _AttachmentItem extends StatelessWidget {
     required this.onDelete,
     required this.onTap,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -1194,7 +1636,7 @@ class _AttachmentItem extends StatelessWidget {
         width: 80,
         height: 80,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
           border: Border.all(
             color: AppColors.separator(context),
             width: 0.5,
@@ -1212,19 +1654,19 @@ class _AttachmentItem extends StatelessWidget {
       switch (attachment.type) {
         case AttachmentType.pdf:
           iconData = Icons.picture_as_pdf_rounded;
-          iconColor = Colors.red;
+          iconColor = AppColors.error;
           break;
         case AttachmentType.zip:
           iconData = Icons.archive_rounded;
-          iconColor = Colors.orange;
+          iconColor = AppColors.warning;
           break;
         case AttachmentType.apk:
           iconData = Icons.android_rounded;
-          iconColor = Colors.green;
+          iconColor = AppColors.success;
           break;
         case AttachmentType.video:
           iconData = Icons.movie_creation_rounded;
-          iconColor = Colors.blue;
+          iconColor = AppColors.accent;
           break;
         default:
           iconData = Icons.insert_drive_file_rounded;
@@ -1234,10 +1676,11 @@ class _AttachmentItem extends StatelessWidget {
       previewWidget = Container(
         width: 160,
         height: 80,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
           border: Border.all(
             color: AppColors.separator(context),
             width: 0.5,
@@ -1249,7 +1692,8 @@ class _AttachmentItem extends StatelessWidget {
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: iconColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius:
+                    BorderRadius.circular(AppSpacing.radiusXs),
               ),
               child: Icon(iconData, color: iconColor, size: 20),
             ),
@@ -1263,15 +1707,19 @@ class _AttachmentItem extends StatelessWidget {
                     attachment.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                    style:
+                        Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                   ),
                   if (attachment.fileSizeBytes != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       _formatBytes(attachment.fileSizeBytes!),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelSmall
+                          ?.copyWith(
                             color: AppColors.textSecondary(context),
                             fontSize: 10,
                           ),
@@ -1286,8 +1734,9 @@ class _AttachmentItem extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => onTap(attachment),
       child: Stack(
+
         clipBehavior: Clip.none,
         children: [
           previewWidget,
@@ -1300,21 +1749,21 @@ class _AttachmentItem extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: AppColors.error,
+                    gradient: const LinearGradient(colors: [
+                      Color(0xFFFF453A),
+                      Color(0xFFFF3B30),
+                    ]),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, 1),
+                        color: AppColors.error.withOpacity(0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.close_rounded,
-                    color: Colors.white,
-                    size: 12,
-                  ),
+                  child: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 12),
                 ),
               ),
             ),
@@ -1333,6 +1782,203 @@ class _AttachmentItem extends StatelessWidget {
       i++;
     }
     return '${count.toStringAsFixed(1)} ${suffixes[i]}';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+class _AttachmentOptionTile extends StatefulWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _AttachmentOptionTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  State<_AttachmentOptionTile> createState() =>
+      _AttachmentOptionTileState();
+}
+
+class _AttachmentOptionTileState extends State<_AttachmentOptionTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 70),
+        reverseDuration: const Duration(milliseconds: 180));
+    _scale = Tween<double>(begin: 1.0, end: 0.97)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (c, child) =>
+            Transform.scale(scale: _scale.value, child: child),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md, vertical: AppSpacing.sm + 2),
+          decoration: BoxDecoration(
+            color: widget.color.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            border: Border.all(
+              color: widget.color.withOpacity(0.15),
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: widget.color.withOpacity(0.12),
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusSm),
+                ),
+                child: Icon(widget.icon,
+                    color: widget.color, size: 20),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.1,
+                            )),
+                    Text(widget.subtitle,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(
+                              color: AppColors.textSecondary(context),
+                            )),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textTertiary(context), size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+class _AddProjectButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _AddProjectButton({required this.onTap});
+
+  @override
+  State<_AddProjectButton> createState() => _AddProjectButtonState();
+}
+
+class _AddProjectButtonState extends State<_AddProjectButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 70),
+        reverseDuration: const Duration(milliseconds: 200));
+    _scale = Tween<double>(begin: 1.0, end: 0.97)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (context, child) =>
+            Transform.scale(scale: _scale.value, child: child),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.accentMid,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+            border: Border.all(
+              color: AppColors.accent.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.12),
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.radiusXs),
+                ),
+                child: const Icon(Icons.add_rounded,
+                    color: AppColors.accent, size: 14),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Add Another Project',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

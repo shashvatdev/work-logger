@@ -34,7 +34,23 @@ class HomeScreen extends ConsumerWidget {
       if (!myProjectsAsync.hasValue && !todayLogAsync.hasValue) {
         return Scaffold(
           backgroundColor: AppColors.background(context),
-          body: const Center(child: CircularProgressIndicator()),
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: SurfaceCard(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(
+                    4,
+                    (index) => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: SkeletonRow(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         );
       }
     }
@@ -80,7 +96,9 @@ class HomeScreen extends ConsumerWidget {
                         ),
                         Text(
                           user.name.split(' ').first,
-                          style: Theme.of(context).textTheme.displayLarge,
+                          style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -119,9 +137,25 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     if (hasTodayLog)
-                      ChipLabel(
-                        label: 'Logged',
-                        color: AppColors.logDot,
+                      AnimatedScale(
+                        scale: 1.0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutBack,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(50),
+                          ),
+                          child: Text(
+                            'Logged today',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -140,11 +174,14 @@ class HomeScreen extends ConsumerWidget {
                         child: Column(
                           children: [
                             for (int i = 0; i < myProjects.length; i++) ...[
-                              _ProjectRow(
-                                project: myProjects[i],
-                                onTap: () {
-                                  context.push('/log/${today.logKey}?projectId=${myProjects[i].id}');
-                                },
+                              StaggeredItem(
+                                index: i,
+                                child: _ProjectRow(
+                                  project: myProjects[i],
+                                  onTap: () {
+                                    context.push('/log/${today.logKey}?projectId=${myProjects[i].id}');
+                                  },
+                                ),
                               ),
                               if (i < myProjects.length - 1)
                                 const AppDivider(indent: AppSpacing.md),
@@ -213,7 +250,7 @@ class _TopActions extends ConsumerWidget {
             onTap: () {
               Scaffold.of(scaffoldContext).openDrawer();
             },
-            child: InitialsAvatar(name: user.name, radius: 20),
+            child: InitialsAvatar(name: user.name, radius: 20, showRing: true),
           ),
         ),
       ],
@@ -228,19 +265,40 @@ class _ProjectRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: 6),
-      title: Text(
-        project.name,
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
-      trailing: Icon(
-        Icons.chevron_right_rounded,
-        color: AppColors.textSecondary(context),
-        size: 20,
-      ),
+    return InkWell(
       onTap: onTap,
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Container(
+              width: 3,
+              color: AppColors.projectColor(project.id),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md, vertical: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      project.name,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: AppColors.textTertiary(context),
+                      size: 14,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -248,22 +306,12 @@ class _ProjectRow extends StatelessWidget {
 class _EmptyProjects extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return SurfaceCard(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-        child: Column(
-          children: [
-            Icon(Icons.folder_open_outlined,
-                color: AppColors.textSecondary(context), size: 36),
-            const SizedBox(height: 12),
-            Text(
-              'No projects assigned yet.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary(context),
-                  ),
-            ),
-          ],
-        ),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: EmptyStateWidget(
+        icon: Icons.work_outline,
+        title: 'No projects assigned',
+        subtitle: 'Your admin will assign you to projects.',
       ),
     );
   }
@@ -283,8 +331,13 @@ class _NavButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppColors.cardShadowLight,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

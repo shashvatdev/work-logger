@@ -48,65 +48,82 @@ class _AdminBottomBar extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(
             AppSpacing.md, AppSpacing.xs, AppSpacing.md, AppSpacing.sm),
         decoration: BoxDecoration(
-          color: AppColors.elevated(context),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: Theme.of(context).brightness == Brightness.light
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : null,
+          color: AppColors.surface(context),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+          boxShadow: AppColors.cardShadowLight,
         ),
-        child: Row(
-          children: List.generate(items.length, (index) {
-            final selected = currentIndex == index;
-            return Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onTap(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          items[index].icon,
-                          key: ValueKey(selected),
-                          color: selected
-                              ? AppColors.accent
-                              : AppColors.textSecondary(context),
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: Theme.of(context)
-                                .textTheme
-                                .labelMedium
-                                ?.copyWith(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tabWidth = constraints.maxWidth / items.length;
+            return Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutBack,
+                  left: tabWidth * currentIndex + 8,
+                  top: 8,
+                  bottom: 8,
+                  width: tabWidth - 16,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.accentSoft,
+                      borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: List.generate(items.length, (index) {
+                    final selected = currentIndex == index;
+                    return Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onTap(index),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                transitionBuilder: (child, animation) {
+                                  return ScaleTransition(scale: animation, child: child);
+                                },
+                                child: Icon(
+                                  items[index].icon,
+                                  key: ValueKey(selected),
                                   color: selected
                                       ? AppColors.accent
                                       : AppColors.textSecondary(context),
-                                  fontSize: 10,
-                                  fontWeight: selected
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                ) ??
-                            const TextStyle(),
-                        child: Text(items[index].label),
+                                  size: selected ? 24 : 22,
+                                ),
+                              ),
+                              AnimatedSize(
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeInOut,
+                                child: selected
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(top: 2),
+                                        child: Text(
+                                          items[index].label,
+                                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                                color: AppColors.accent,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
+                    );
+                  }),
                 ),
-              ),
+              ],
             );
-          }),
+          },
         ),
       ),
     );

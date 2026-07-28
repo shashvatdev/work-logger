@@ -18,37 +18,17 @@ class AuthScreen extends ConsumerStatefulWidget {
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends ConsumerState<AuthScreen>
-    with SingleTickerProviderStateMixin {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
   String? _error;
-  late final AnimationController _fadeCtrl;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _fadeCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-    _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut));
-    _fadeCtrl.forward();
-  }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
-    _fadeCtrl.dispose();
     super.dispose();
   }
 
@@ -103,106 +83,156 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     final size = MediaQuery.of(context).size;
     return Scaffold(
       backgroundColor: AppColors.background(context),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: FadeTransition(
-              opacity: _fade,
-              child: SlideTransition(
-                position: _slide,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(height: size.height * 0.1),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppColors.accent.withOpacity(0.05),
+              AppColors.background(context),
+            ],
+            stops: const [0.0, 0.3],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: size.height * 0.1),
 
-                    // ── Logo mark ────────────────────────────────────────────
-                    Container(
+                  // ── Logo mark ────────────────────────────────────────────
+                  StaggeredItem(
+                    index: 0,
+                    baseDelay: Duration.zero,
+                    child: Container(
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: AppColors.accent,
-                        borderRadius: BorderRadius.circular(14),
+                        gradient: AppColors.accentGradient,
+                        shape: BoxShape.circle,
+                        boxShadow: AppColors.accentShadow,
                       ),
                       child: const Icon(Icons.edit_note_rounded,
                           color: Colors.white, size: 28),
                     ),
-                    const SizedBox(height: AppSpacing.xl),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
 
-                    // ── Heading ──────────────────────────────────────────────
-                    Text(
+                  // ── Heading ──────────────────────────────────────────────
+                  StaggeredItem(
+                    index: 1,
+                    baseDelay: const Duration(milliseconds: 120),
+                    child: Text(
                       'WorkNote',
-                      style: Theme.of(context).textTheme.displayLarge,
+                      style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -1.0,
+                          ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
+                  ),
+                  const SizedBox(height: 6),
+                  StaggeredItem(
+                    index: 2,
+                    baseDelay: const Duration(milliseconds: 180),
+                    child: Text(
                       'Your daily work journal.',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: AppColors.textSecondary(context),
+                            fontStyle: FontStyle.italic,
                           ),
                     ),
-                    const SizedBox(height: AppSpacing.xxl),
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
 
-                    // ── Email ────────────────────────────────────────────────
-                    TextField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      autocorrect: false,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      decoration: const InputDecoration(hintText: 'Email'),
-                      onChanged: (_) => setState(() => _error = null),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
+                  // ── Email ────────────────────────────────────────────────
+                  StaggeredItem(
+                    index: 3,
+                    baseDelay: const Duration(milliseconds: 260),
+                    child: Column(
+                      children: [
+                      TextField(
+                        controller: _emailCtrl,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        autocorrect: false,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        decoration: InputDecoration(
+                          hintText: 'Email',
+                          prefixIcon: Icon(Icons.email_outlined,
+                              color: AppColors.textSecondary(context)),
+                        ),
+                        onChanged: (_) => setState(() => _error = null),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
 
-                    // ── Password ─────────────────────────────────────────────
-                    TextField(
-                      controller: _passCtrl,
-                      obscureText: _obscure,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _signIn(),
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      decoration: InputDecoration(
-                        hintText: 'Password',
-                        suffixIcon: GestureDetector(
-                          onTap: () => setState(() => _obscure = !_obscure),
-                          child: Icon(
-                            _obscure
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            color: AppColors.textSecondary(context),
-                            size: 20,
+                      // ── Password ─────────────────────────────────────────────
+                      TextField(
+                        controller: _passCtrl,
+                        obscureText: _obscure,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => _signIn(),
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        decoration: InputDecoration(
+                          hintText: 'Password',
+                          prefixIcon: Icon(Icons.lock_outline_rounded,
+                              color: AppColors.textSecondary(context)),
+                          suffixIcon: GestureDetector(
+                            onTap: () => setState(() => _obscure = !_obscure),
+                            child: Icon(
+                              _obscure
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              color: AppColors.textSecondary(context),
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),
+                    ]),
+                  ),
+
+                  // ── Error ────────────────────────────────────────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    transitionBuilder: (child, animation) => SlideTransition(
+                      position: Tween<Offset>(
+                              begin: const Offset(0, -0.2), end: Offset.zero)
+                          .animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
                     ),
+                    child: _error != null
+                        ? Padding(
+                            key: const ValueKey('error'),
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(
+                              _error!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(color: AppColors.error),
+                            ),
+                          )
+                        : const SizedBox.shrink(key: ValueKey('no_error')),
+                  ),
 
-                    // ── Error ────────────────────────────────────────────────
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 250),
-                      child: _error != null
-                          ? Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Text(
-                                _error!,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelMedium
-                                    ?.copyWith(color: AppColors.error),
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
+                  const SizedBox(height: AppSpacing.xl),
 
-                    const SizedBox(height: AppSpacing.xl),
-
-                    // ── Sign In button ───────────────────────────────────────
-                    PremiumButton(
+                  // ── Sign In button ───────────────────────────────────────
+                  StaggeredItem(
+                    index: 4,
+                    baseDelay: const Duration(milliseconds: 340),
+                    child: PremiumButton(
                       label: 'Sign In',
                       loading: _loading,
+                      useGradient: true,
                       onPressed: _signIn,
                     ),
+                  ),
 
                     const SizedBox(height: AppSpacing.md),
 
@@ -230,37 +260,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                       ),
                     ),
 
-                    const SizedBox(height: AppSpacing.lg),
-
-                    // ── Demo accounts shortcuts ──────────────────────────────
-                    Center(
-                      child: Column(
-                        children: [
-                          Text(
-                            'Quick Demo Accounts',
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            alignment: WrapAlignment.center,
-                            children: [
-                              _demoChip(context, 'Super Admin', 'admin@gmail.com'),
-                              _demoChip(context, 'Employee 1', 'employee1@gmail.com'),
-                              _demoChip(context, 'Employee 2', 'employee2@gmail.com'),
-                              _demoChip(context, 'Employee 3', 'employee3@gmail.com'),
-                              _demoChip(context, 'Employee 4', 'employee4@gmail.com'),
-                              _demoChip(context, 'Employee 5', 'employee5@gmail.com'),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
                     SizedBox(height: size.height * 0.05),
-                  ],
-                ),
+                ],
               ),
             ),
           ),
@@ -268,34 +269,5 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       ),
     );
   }
-
-  Widget _demoChip(BuildContext context, String name, String email, {String password = '12345'}) {
-    return InkWell(
-      onTap: () {
-        _emailCtrl.text = email;
-        _passCtrl.text = password;
-        setState(() => _error = null);
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.surface(context),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppColors.accent.withOpacity(0.2),
-            width: 1,
-          ),
-        ),
-        child: Text(
-          '$name ($email)',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: AppColors.accent,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-        ),
-      ),
-    );
-  }
 }
+

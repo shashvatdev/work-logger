@@ -105,14 +105,14 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
               // ── Avatar illustration ──────────────────────────────────────
               Center(
                 child: Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withOpacity(0.1),
+                  width: 80,
+                  height: 80,
+                  decoration: const BoxDecoration(
+                    gradient: AppColors.accentGradient,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.person_add_alt_1_rounded,
-                      color: AppColors.accent, size: 36),
+                      color: Colors.white, size: 40),
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -120,9 +120,8 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
               // ── Fields Label ─────────────────────────────────────────────
               Text(
                 'EMPLOYEE DETAILS',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontSize: 11,
-                      letterSpacing: 0.8,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      letterSpacing: 1.2,
                       color: AppColors.textSecondary(context),
                     ),
               ),
@@ -222,43 +221,94 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
               // ── Role Label ───────────────────────────────────────────────
               Text(
                 'ROLE',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontSize: 11,
-                      letterSpacing: 0.8,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      letterSpacing: 1.2,
                       color: AppColors.textSecondary(context),
                     ),
               ),
               const SizedBox(height: AppSpacing.sm),
 
               // ── Role Selector ────────────────────────────────────────────
-              SurfaceCard(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: 4),
-                child: DropdownButtonFormField<String>(
-                  value: _selectedRole,
-                  dropdownColor: AppColors.elevated(context),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedRole = 'Employee'),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _selectedRole == 'Employee'
+                              ? AppColors.accent
+                              : AppColors.elevated(context),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusMd),
+                          boxShadow: _selectedRole == 'Employee'
+                              ? AppColors.accentShadow
+                              : null,
+                          border: _selectedRole != 'Employee'
+                              ? Border.all(
+                                  color: AppColors.separator(context),
+                                  width: 0.5)
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Employee',
+                            style:
+                                Theme.of(context).textTheme.labelLarge?.copyWith(
+                                      color: _selectedRole == 'Employee'
+                                          ? Colors.white
+                                          : AppColors.textPrimary(context),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  style: Theme.of(context).textTheme.bodyLarge,
-                  icon: Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textSecondary(context)),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Employee',
-                      child: Text('Employee'),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedRole = 'Admin'),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _selectedRole == 'Admin'
+                              ? AppColors.accent
+                              : AppColors.elevated(context),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.radiusMd),
+                          boxShadow: _selectedRole == 'Admin'
+                              ? AppColors.accentShadow
+                              : null,
+                          border: _selectedRole != 'Admin'
+                              ? Border.all(
+                                  color: AppColors.separator(context),
+                                  width: 0.5)
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Admin',
+                            style:
+                                Theme.of(context).textTheme.labelLarge?.copyWith(
+                                      color: _selectedRole == 'Admin'
+                                          ? Colors.white
+                                          : AppColors.textPrimary(context),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                          ),
+                        ),
+                      ),
                     ),
-                    DropdownMenuItem(
-                      value: 'Admin',
-                      child: Text('Admin'),
-                    ),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) setState(() => _selectedRole = v);
-                  },
-                ),
+                  ),
+                ],
               ),
+
 
               const SizedBox(height: AppSpacing.xl),
 
@@ -267,6 +317,7 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
                 label: 'Add Employee',
                 icon: Icons.person_add_rounded,
                 loading: _loading,
+                useGradient: true,
                 onPressed: _loading ? null : _submit,
               ),
 

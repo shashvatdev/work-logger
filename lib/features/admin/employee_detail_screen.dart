@@ -144,7 +144,15 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
           surfaceTintColor: Colors.transparent,
           leading: const BackButton(),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            children: List.generate(4, (index) => const Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.sm),
+              child: SkeletonRow(),
+            )),
+          ),
+        ),
       ),
       error: (e, _) => Scaffold(
         backgroundColor: AppColors.background(context),
@@ -178,6 +186,7 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
             centerTitle: true,
             actions: [
               IconButton(
+                padding: const EdgeInsets.all(12),
                 icon: const Icon(Icons.calendar_month_outlined),
                 color: AppColors.accent,
                 onPressed: () =>
@@ -185,12 +194,14 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
                 tooltip: 'Calendar View',
               ),
               IconButton(
+                padding: const EdgeInsets.all(12),
                 icon: const Icon(Icons.edit_outlined),
                 color: AppColors.accent,
                 onPressed: () => _showEditSheet(employee),
                 tooltip: 'Edit',
               ),
               IconButton(
+                padding: const EdgeInsets.all(12),
                 icon: const Icon(Icons.person_off_outlined),
                 color: AppColors.error,
                 onPressed: () => _confirmDeactivate(employee),
@@ -237,25 +248,27 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'LOG HISTORY',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelMedium
-                              ?.copyWith(
-                                fontSize: 11,
-                                letterSpacing: 0.8,
-                                color: AppColors.textSecondary(context),
-                              ),
+                        Row(
+                          children: [
+                            Icon(Icons.history_rounded, size: 16, color: AppColors.textSecondary(context)),
+                            const SizedBox(width: 6),
+                            Text(
+                              'LOG HISTORY',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    fontSize: 11,
+                                    letterSpacing: 0.8,
+                                    color: AppColors.textSecondary(context),
+                                  ),
+                            ),
+                          ],
                         ),
                         if (logsState.total > 0)
-                          Text(
-                            '${logsState.total} entries',
-                            style:
-                                Theme.of(context).textTheme.labelMedium?.copyWith(
-                                      color: AppColors.textSecondary(context),
-                                      fontSize: 11,
-                                    ),
+                          ChipLabel(
+                            label: '${logsState.total} entries',
+                            color: AppColors.textSecondary(context),
                           ),
                       ],
                     ),
@@ -279,40 +292,30 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
 
                 // ── Logs ─────────────────────────────────────────────────
                 if (logsState.logs.isEmpty && logsState.isLoading)
-                  const SliverToBoxAdapter(
-                    child: Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: CircularProgressIndicator(),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Column(
+                        children: List.generate(4, (index) => const Padding(
+                          padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: SkeletonRow(),
+                        )),
                       ),
                     ),
                   )
                 else if (logsState.logs.isEmpty)
-                  SliverToBoxAdapter(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          children: [
-                            Icon(Icons.history_rounded,
-                                color: AppColors.textSecondary(context),
-                                size: 40),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No logs found',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: AppColors.textSecondary(context),
-                                  ),
-                            ),
-                          ],
-                        ),
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      child: EmptyStateWidget(
+                        icon: Icons.history_toggle_off_rounded,
+                        title: 'No logs found',
+                        subtitle: 'No entries match the selected date range.',
                       ),
                     ),
                   )
                 else
+
                   SliverPadding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md),
@@ -324,9 +327,12 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
                             for (int i = 0;
                                 i < logsState.logs.length;
                                 i++) ...[
-                              _LogRow(
-                                userId: widget.userId,
-                                log: logsState.logs[i],
+                              StaggeredItem(
+                                index: i,
+                                child: _LogRow(
+                                  userId: widget.userId,
+                                  log: logsState.logs[i],
+                                ),
                               ),
                               if (i < logsState.logs.length - 1)
                                 const AppDivider(indent: 16),
@@ -385,11 +391,14 @@ class _ProfileCard extends StatelessWidget {
       child: Column(
         children: [
           // Avatar + name
-          InitialsAvatar(name: employee.name, radius: 32),
+          InitialsAvatar(name: employee.name, radius: 36, showRing: true),
           const SizedBox(height: 12),
           Text(
             employee.name,
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 4),
@@ -405,12 +414,12 @@ class _ProfileCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _Badge(
+              ChipLabel(
                 label: isAdmin ? 'Admin' : 'Employee',
                 color: isAdmin ? AppColors.accent : AppColors.textSecondary(context),
               ),
               const SizedBox(width: 8),
-              _Badge(
+              ChipLabel(
                 label: employee.isActive ? 'Active' : 'Inactive',
                 color: employee.isActive ? AppColors.success : AppColors.error,
               ),
@@ -435,31 +444,6 @@ class _ProfileCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _Badge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
       ),
     );
   }
@@ -508,8 +492,7 @@ class _TodayStatusCard extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (hasLogged ? AppColors.success : AppColors.error)
-                        .withOpacity(0.12),
+                    color: hasLogged ? const Color(0x1F34C759) : const Color(0x1FFF3B30),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -747,10 +730,11 @@ class _DateChip extends StatelessWidget {
           color: isSet
               ? AppColors.accent.withOpacity(0.1)
               : AppColors.surface(context),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
           border: isSet
               ? Border.all(color: AppColors.accent.withOpacity(0.3))
-              : null,
+              : Border.all(color: AppColors.separator(context)),
+          boxShadow: isSet ? null : AppColors.cardShadowLight,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -794,47 +778,44 @@ class _LogRow extends StatelessWidget {
       }
     }();
 
-    return InkWell(
+    return SurfaceCard(
       onTap: () => context.push('/log/${log.date}?viewUserId=$userId'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppColors.accent,
-                shape: BoxShape.circle,
-              ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: AppColors.accent,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    dateFormatted,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${log.entryCount} ${log.entryCount == 1 ? 'entry' : 'entries'}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary(context),
-                        ),
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dateFormatted,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${log.entryCount} ${log.entryCount == 1 ? 'entry' : 'entries'}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary(context),
+                      ),
+                ),
+              ],
             ),
-            Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary(context), size: 20),
-          ],
-        ),
+          ),
+          Icon(Icons.chevron_right_rounded,
+              color: AppColors.textSecondary(context), size: 20),
+        ],
       ),
     );
   }
@@ -941,22 +922,8 @@ class _EditEmployeeSheetState extends ConsumerState<_EditEmployeeSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.separator(context),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          Text(
-            'Edit Employee',
-            style: Theme.of(context).textTheme.titleLarge,
-            textAlign: TextAlign.center,
+          const SheetHandle(
+            title: 'Edit Employee',
           ),
           const SizedBox(height: AppSpacing.lg),
 

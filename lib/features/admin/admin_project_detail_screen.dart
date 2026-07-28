@@ -19,7 +19,7 @@ class AdminProjectDetailScreen extends ConsumerWidget {
     final timelineAsync = ref.watch(projectTimelineProvider(projectId));
 
     return projectsAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => Scaffold(body: ListView(padding: const EdgeInsets.all(AppSpacing.md), children: List.generate(5, (_) => const Padding(padding: EdgeInsets.only(bottom: AppSpacing.sm), child: SkeletonRow())))),
       error: (e, st) => Scaffold(body: Center(child: Text(e.toString()))),
       data: (projects) {
         final project = projects.where((p) => p.id == projectId).firstOrNull;
@@ -124,21 +124,13 @@ class AdminProjectDetailScreen extends ConsumerWidget {
                     )).toList();
 
                     if (timeline.isEmpty) {
-                      return SliverToBoxAdapter(
+                      return const SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                          child: SurfaceCard(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                              child: Center(
-                                child: Text(
-                                  'No work logged on this project yet.',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: AppColors.textSecondary(context),
-                                      ),
-                                ),
-                              ),
-                            ),
+                          padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                          child: EmptyStateWidget(
+                            icon: Icons.timeline_outlined,
+                            title: 'No activity yet',
+                            subtitle: 'Work logged on this project will appear here.',
                           ),
                         ),
                       );
@@ -152,10 +144,13 @@ class AdminProjectDetailScreen extends ConsumerWidget {
                             final entry = timeline[index];
                             final prevEntry = index > 0 ? timeline[index - 1] : null;
                             final showDateHeader = prevEntry == null || prevEntry.date != entry.date;
-                            return _TimelineItem(
-                              entry: entry,
-                              showDateHeader: showDateHeader,
-                              isLast: index == timeline.length - 1,
+                            return StaggeredItem(
+                              index: index,
+                              child: _TimelineItem(
+                                entry: entry,
+                                showDateHeader: showDateHeader,
+                                isLast: index == timeline.length - 1,
+                              ),
                             );
                           },
                           childCount: timeline.length,
@@ -186,37 +181,74 @@ class _MemberRow extends ConsumerWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: 6),
-      leading: InitialsAvatar(name: member.name, radius: 20),
-      title: Text(member.name, style: Theme.of(context).textTheme.bodyLarge),
-      subtitle: Text(
-        isAdmin ? 'Admin' : 'Employee',
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontSize: 12,
+      leading: InitialsAvatar(name: member.name, radius: 20, showRing: true),
+      title: Row(
+        children: [
+          Text(member.name, style: Theme.of(context).textTheme.bodyLarge),
+          const SizedBox(width: AppSpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: isAdmin ? AppColors.accent.withOpacity(0.1) : AppColors.surface(context),
+              borderRadius: BorderRadius.circular(4),
             ),
+            child: Text(
+              isAdmin ? 'Admin' : 'Employee',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isAdmin ? AppColors.accent : AppColors.textSecondary(context),
+                    fontSize: 10,
+                  ),
+            ),
+          ),
+        ],
       ),
       trailing: !isAdmin
-          ? GestureDetector(
-              onTap: () async {
-                final repo = ProjectRepository();
-                await repo.removeProjectMember(project.id, member.id);
-                ref.invalidate(allProjectsProvider);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Remove',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.error,
-                        fontSize: 12,
-                      ),
-                ),
-              ),
-            )
+          ? _RemoveButton(project: project, member: member)
           : null,
+    );
+  }
+}
+
+class _RemoveButton extends ConsumerStatefulWidget {
+  final ProjectModel project;
+  final UserModel member;
+  const _RemoveButton({required this.project, required this.member});
+  @override
+  ConsumerState<_RemoveButton> createState() => _RemoveButtonState();
+}
+
+class _RemoveButtonState extends ConsumerState<_RemoveButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+  @override
+  void dispose() { _anim.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _anim.forward(),
+      onTapUp: (_) async {
+        _anim.reverse();
+        final repo = ProjectRepository();
+        await repo.removeProjectMember(widget.project.id, widget.member.id);
+        ref.invalidate(allProjectsProvider);
+      },
+      onTapCancel: () => _anim.reverse(),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1.0, end: 0.9).animate(_anim),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.errorSoft,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            'Remove',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: AppColors.error,
+                  fontSize: 12,
+                ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -251,21 +283,7 @@ class _AddMemberButton extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.separator(context),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text('Assign Employee',
-                  style: Theme.of(context).textTheme.titleLarge),
-            ),
+            const SheetHandle(title: 'Assign Employee'),
             const SizedBox(height: 12),
             for (final user in candidates) ...[
               (() {
@@ -302,33 +320,46 @@ class _AddMemberButton extends ConsumerWidget {
   }
 }
 
-class _ArchiveButton extends ConsumerWidget {
+class _ArchiveButton extends ConsumerStatefulWidget {
   final ProjectModel project;
   const _ArchiveButton({required this.project});
+  @override
+  ConsumerState<_ArchiveButton> createState() => _ArchiveButtonState();
+}
+
+class _ArchiveButtonState extends ConsumerState<_ArchiveButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
+  @override
+  void dispose() { _anim.dispose(); super.dispose(); }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () async {
+      onTapDown: (_) => _anim.forward(),
+      onTapUp: (_) async {
+        _anim.reverse();
         final repo = ProjectRepository();
-        await repo.archiveProject(project.id, !project.archived);
+        await repo.archiveProject(widget.project.id, !widget.project.archived);
         ref.invalidate(allProjectsProvider);
-        if (context.mounted) Navigator.pop(context);
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: project.archived
-              ? AppColors.logDot.withOpacity(0.12)
-              : AppColors.warning.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          project.archived ? 'Unarchive' : 'Archive',
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: project.archived ? AppColors.logDot : AppColors.warning,
-                fontSize: 14,
-              ),
+      onTapCancel: () => _anim.reverse(),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 1.0, end: 0.95).animate(_anim),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: widget.project.archived
+                ? AppColors.logDot.withOpacity(0.12)
+                : AppColors.warning.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            widget.project.archived ? 'Unarchive' : 'Archive',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: widget.project.archived ? AppColors.logDot : AppColors.warning,
+                  fontSize: 14,
+                ),
+          ),
         ),
       ),
     );
@@ -373,8 +404,9 @@ class _TimelineItem extends StatelessWidget {
             padding: const EdgeInsets.only(left: 28),
             child: Text(
               dateDisplay,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
+                    fontStyle: FontStyle.italic,
                   ),
             ),
           ),
@@ -403,7 +435,16 @@ class _TimelineItem extends StatelessWidget {
                         child: Center(
                           child: Container(
                             width: 1.5,
-                            color: AppColors.separator(context),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  AppColors.accent.withOpacity(0.3),
+                                  AppColors.accent.withOpacity(0.1),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -434,7 +475,7 @@ class _TimelineItem extends StatelessWidget {
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
-                            ?.copyWith(height: 1.5),
+                            ?.copyWith(height: 1.6),
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
