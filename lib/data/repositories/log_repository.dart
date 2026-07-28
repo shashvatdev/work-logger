@@ -15,7 +15,7 @@ class LogRepository {
       if (resp.statusCode == 200) {
         return ApiSuccess(DailyLogModel.fromJson(resp.data));
       }
-      if (resp.statusCode == 404) return const ApiSuccess(null); // Not logged yet
+      if (resp.statusCode == 404 || resp.statusCode == 204) return const ApiSuccess(null); // Not logged yet
       return ApiError(ApiException(
         statusCode: resp.statusCode,
         message: resp.data?['message'] ?? 'Failed',
@@ -30,7 +30,7 @@ class LogRepository {
     try {
       final resp = await _dio.get(ApiEndpoints.logByDate(date));
       if (resp.statusCode == 200) return ApiSuccess(DailyLogModel.fromJson(resp.data));
-      if (resp.statusCode == 404) return const ApiSuccess(null);
+      if (resp.statusCode == 404 || resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
         message: resp.data?['message'] ?? 'Failed',
@@ -144,7 +144,7 @@ class LogRepository {
       final resp =
           await _dio.get(ApiEndpoints.logByUserAndDate(userId, date));
       if (resp.statusCode == 200) return ApiSuccess(DailyLogModel.fromJson(resp.data));
-      if (resp.statusCode == 404) return const ApiSuccess(null);
+      if (resp.statusCode == 404 || resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
         message: resp.data?['message'] ?? 'Failed',
