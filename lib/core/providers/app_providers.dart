@@ -81,19 +81,6 @@ final todayLogProvider = FutureProvider<DailyLogModel?>((ref) async {
   };
 });
 
-final yesterdayLogProvider = FutureProvider<DailyLogModel?>((ref) async {
-  final user = ref.watch(currentUserProvider);
-  if (user == null) return null;
-  final yesterday = DateTime.now().subtract(const Duration(days: 1));
-  final dateStr = DateFormat('yyyy-MM-dd').format(yesterday);
-  final repo = LogRepository();
-  final result = await repo.getLogByDate(dateStr);
-  return switch (result) {
-    ApiSuccess(data: final log) => log,
-    ApiError(exception: final ex) => throw ex,
-  };
-});
-
 final logForDateProvider = FutureProvider.family<DailyLogModel?, ({String uid, DateTime date})>((ref, args) async {
   final currentUser = ref.watch(currentUserProvider);
   final dateStr = DateFormat('yyyy-MM-dd').format(args.date);

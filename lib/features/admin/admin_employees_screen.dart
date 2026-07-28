@@ -63,7 +63,6 @@ class AdminEmployeesScreen extends ConsumerWidget {
                             ref.invalidate(allProjectsProvider);
                             ref.invalidate(myProjectsProvider);
                             ref.invalidate(todayLogProvider);
-                            ref.invalidate(yesterdayLogProvider);
                           },
                           child: InitialsAvatar(
                               name: user?.name ?? 'Admin', radius: 20),

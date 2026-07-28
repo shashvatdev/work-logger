@@ -17,13 +17,11 @@ import '../../core/api/api_exception.dart';
 
 class LogScreen extends ConsumerStatefulWidget {
   final DateTime date;
-  final bool continueYesterday;
   final String? viewUserId;
   final String? initialProjectId;
   const LogScreen({
     super.key,
     required this.date,
-    this.continueYesterday = false,
     this.viewUserId,
     this.initialProjectId,
   });
@@ -89,24 +87,6 @@ class _LogScreenState extends ConsumerState<LogScreen> {
       } else if (widget.viewUserId != null || !widget.date.isToday) {
         // Read-only mode or past date without log: show empty list
         newEditors = [];
-      } else if (widget.continueYesterday) {
-        final yesterdayStr = DateFormat('yyyy-MM-dd').format(widget.date.subtract(const Duration(days: 1)));
-        final yResult = await repo.getLogByDate(yesterdayStr);
-        if (yResult is ApiSuccess && yResult.data?.entries.isNotEmpty == true) {
-          newEditors = yResult.data!.entries.map((e) {
-            return _EntryEditor(
-              entry: LogEntryModel(
-                id: _uuid.v4(),
-                logId: '${user.id}_$dateStr',
-                projectId: e.projectId,
-                description: '',
-              ),
-              controller: TextEditingController(),
-            );
-          }).toList();
-        } else {
-          newEditors = [_newEditor(user.id, '${user.id}_$dateStr')];
-        }
       } else {
         newEditors = [_newEditor(user.id, '${user.id}_$dateStr')];
       }
@@ -246,7 +226,6 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     }
 
     ref.invalidate(todayLogProvider);
-    ref.invalidate(yesterdayLogProvider);
 
     setState(() {
       _saving = false;
@@ -334,7 +313,6 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         }
       }
       ref.invalidate(todayLogProvider);
-      ref.invalidate(yesterdayLogProvider);
       setState(() => _saving = false);
       return true;
     } else {

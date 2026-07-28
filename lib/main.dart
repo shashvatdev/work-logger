@@ -22,7 +22,6 @@ class WorkLogApp extends ConsumerWidget {
           ref.invalidate(allProjectsProvider);
           ref.invalidate(myProjectsProvider);
           ref.invalidate(todayLogProvider);
-          ref.invalidate(yesterdayLogProvider);
           ref.invalidate(allUsersProvider);
         }
       });

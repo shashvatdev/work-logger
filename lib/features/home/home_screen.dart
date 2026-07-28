@@ -17,7 +17,6 @@ class HomeScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final myProjectsAsync = ref.watch(myProjectsProvider);
     final todayLogAsync = ref.watch(todayLogProvider);
-    final yesterdayLogAsync = ref.watch(yesterdayLogProvider);
     final today = DateTime.now();
 
     if (user == null) return const SizedBox.shrink();
@@ -32,7 +31,7 @@ class HomeScreen extends ConsumerWidget {
       );
     }
 
-    if (myProjectsAsync.isLoading || todayLogAsync.isLoading || yesterdayLogAsync.isLoading) {
+    if (myProjectsAsync.isLoading || todayLogAsync.isLoading) {
       if (!myProjectsAsync.hasValue && !todayLogAsync.hasValue) {
         return Scaffold(
           backgroundColor: AppColors.background(context),
@@ -43,9 +42,7 @@ class HomeScreen extends ConsumerWidget {
 
     final myProjects = myProjectsAsync.valueOrNull ?? <ProjectModel>[];
     final todayLog = todayLogAsync.valueOrNull;
-    final yesterdayLog = yesterdayLogAsync.valueOrNull;
 
-    final hasYesterdayLog = yesterdayLog != null && yesterdayLog.entries.isNotEmpty;
     final hasTodayLog = todayLog != null && todayLog.entries.isNotEmpty;
 
     return Scaffold(
@@ -55,7 +52,6 @@ class HomeScreen extends ConsumerWidget {
           onRefresh: () async {
             ref.invalidate(myProjectsProvider);
             ref.invalidate(todayLogProvider);
-            ref.invalidate(yesterdayLogProvider);
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -103,21 +99,6 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-
-            // ── "Continue Yesterday" banner ──────────────────────────────────
-            if (hasYesterdayLog && !hasTodayLog)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-                  child: _ContinueYesterdayBanner(
-                    onTap: () {
-                      context.push(
-                          '/log/${today.logKey}?continueYesterday=true');
-                    },
-                  ),
-                ),
-              ),
 
             // ── "Today's Log" status ─────────────────────────────────────────
             SliverToBoxAdapter(
@@ -234,7 +215,6 @@ class _TopActions extends ConsumerWidget {
             ref.invalidate(allProjectsProvider);
             ref.invalidate(myProjectsProvider);
             ref.invalidate(todayLogProvider);
-            ref.invalidate(yesterdayLogProvider);
           },
           child: InitialsAvatar(name: user.name, radius: 20),
         ),
@@ -263,84 +243,6 @@ class _ProjectRow extends StatelessWidget {
         size: 20,
       ),
       onTap: onTap,
-    );
-  }
-}
-
-class _ContinueYesterdayBanner extends StatefulWidget {
-  final VoidCallback onTap;
-  const _ContinueYesterdayBanner({required this.onTap});
-
-  @override
-  State<_ContinueYesterdayBanner> createState() =>
-      _ContinueYesterdayBannerState();
-}
-
-class _ContinueYesterdayBannerState extends State<_ContinueYesterdayBanner>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<Offset> _slide;
-  late final Animation<double> _fade;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _slide = Tween<Offset>(
-      begin: const Offset(0, -0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(
-        position: _slide,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: 14),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: AppColors.accent.withOpacity(0.2), width: 0.5),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.reply_rounded,
-                    color: AppColors.accent, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Continue from yesterday',
-                    style:
-                        Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.accent,
-                            ),
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded,
-                    color: AppColors.accent, size: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

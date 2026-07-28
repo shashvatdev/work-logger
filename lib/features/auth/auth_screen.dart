@@ -83,7 +83,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         ref.invalidate(allProjectsProvider);
         ref.invalidate(myProjectsProvider);
         ref.invalidate(todayLogProvider);
-        ref.invalidate(yesterdayLogProvider);
         ref.invalidate(allUsersProvider);
         
         setState(() => _loading = false);
