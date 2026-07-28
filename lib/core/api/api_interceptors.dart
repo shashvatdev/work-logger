@@ -6,14 +6,14 @@ import 'api_endpoints.dart';
 import 'api_client.dart';
 
 /// ─────────────────────────────────────────────────────────────────────────────
-/// WorkLog Logger Interceptor
+/// WorkNote Logger Interceptor
 ///
-/// Prints every request and response to the Flutter console in a clean,
-/// readable format. Format is compatible with Dart's `dart:developer` log
+/// Logs all HTTP requests and responses for debugging.
+/// Format is compatible with Dart's `dart:developer` log
 /// so it shows up cleanly in DevTools.
 /// ─────────────────────────────────────────────────────────────────────────────
-class WorkLogLoggerInterceptor extends Interceptor {
-  static const _tag = 'WorkLog API';
+class WorkNoteLoggerInterceptor extends Interceptor {
+  static const _tag = 'WorkNote API';
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {

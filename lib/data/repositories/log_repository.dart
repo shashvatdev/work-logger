@@ -8,6 +8,13 @@ import '../../data/models/models.dart';
 class LogRepository {
   final Dio _dio = ApiClient.instance;
 
+  String _extractMessage(dynamic data, String fallback) {
+    if (data is Map && data['message'] != null) {
+      return data['message'].toString();
+    }
+    return fallback;
+  }
+
   // ─── GET /logs/today ───────────────────────────────────────────────────────
   Future<ApiResult<DailyLogModel?>> getTodayLog() async {
     try {
@@ -18,7 +25,7 @@ class LogRepository {
       if (resp.statusCode == 404 || resp.statusCode == 204) return const ApiSuccess(null); // Not logged yet
       return ApiError(ApiException(
         statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+        message: _extractMessage(resp.data, 'Failed'),
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -33,7 +40,7 @@ class LogRepository {
       if (resp.statusCode == 404 || resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+        message: _extractMessage(resp.data, 'Failed'),
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -60,7 +67,7 @@ class LogRepository {
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+        message: _extractMessage(resp.data, 'Failed'),
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -79,7 +86,7 @@ class LogRepository {
       if (resp.statusCode == 201) return ApiSuccess(DailyLogModel.fromJson(resp.data));
       return ApiError(ApiException(
         statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to create log',
+        message: _extractMessage(resp.data, 'Failed to create log'),
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -103,7 +110,7 @@ class LogRepository {
       if (resp.statusCode == 200) return ApiSuccess(DailyLogModel.fromJson(resp.data));
       return ApiError(ApiException(
         statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to update log',
+        message: _extractMessage(resp.data, 'Failed to update log'),
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -130,7 +137,7 @@ class LogRepository {
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+        message: _extractMessage(resp.data, 'Failed'),
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -147,7 +154,7 @@ class LogRepository {
       if (resp.statusCode == 404 || resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+        message: _extractMessage(resp.data, 'Failed'),
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));

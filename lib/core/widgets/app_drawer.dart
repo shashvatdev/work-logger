@@ -44,7 +44,7 @@ class AppDrawer extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user?.name ?? 'WorkLog User',
+                          user?.name ?? 'WorkNote User',
                           style: Theme.of(context)
                               .textTheme
                               .titleMedium
@@ -148,7 +148,7 @@ class AppDrawer extends ConsumerWidget {
                       context,
                       title: 'Privacy Policy',
                       content:
-                          'WorkLog strictly respects your privacy. We collect minimal employee work activity logs solely for project management and internal tracking within your organization.\n\n'
+                          'WorkNote strictly respects your privacy. We collect minimal employee work activity logs solely for project management and internal tracking within your organization.\n\n'
                           '• Personal Information: Name and business email address.\n'
                           '• Logs & Attachments: Work logs and files uploaded by you.\n'
                           '• Data Retention: Stored securely in cloud storage with full SSL encryption.\n'
@@ -165,7 +165,7 @@ class AppDrawer extends ConsumerWidget {
                       context,
                       title: 'Terms of Service',
                       content:
-                          'By accessing or using WorkLog, you agree to comply with your organization\'s code of conduct and reporting policies.\n\n'
+                          'By accessing or using WorkNote, you agree to comply with your organization\'s code of conduct and reporting policies.\n\n'
                           '1. Account Security: You are responsible for keeping your login credentials secure.\n'
                           '2. Content Compliance: Log entries and uploaded attachments must conform to workplace standards.\n'
                           '3. Access Termination: Organization admins reserve the right to deactivate employee access at any time.',
@@ -198,9 +198,10 @@ class AppDrawer extends ConsumerWidget {
                       title: 'Help & Support',
                       content:
                           'Need assistance or found a bug?\n\n'
-                          '📧 Support Email: support@worklog.app\n'
-                          '🕒 Response Time: Within 24 business hours\n'
-                          '🌐 Website: https://worklog.app',
+                          '📧 Email: info@addonshareware.com\n'
+                          '📞 Phone: +91 93114 35804\n'
+                          '🌐 Website: addonshareware.com\n\n'
+                          '🕒 Response Time: Within 24 business hours',
                     ),
                   ),
                 ],
@@ -224,7 +225,7 @@ class AppDrawer extends ConsumerWidget {
               child: Column(
                 children: [
                   Text(
-                    'WorkLog v1.0.0 (1)',
+                    'WorkNote v1.0.0 (1)',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                           color: AppColors.textSecondary(context),
                           fontWeight: FontWeight.w600,
@@ -232,7 +233,7 @@ class AppDrawer extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '© 2026 WorkLog Inc. All rights reserved.',
+                    '© 2026 WorkNote Inc. All rights reserved.',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: AppColors.textSecondary(context).withOpacity(0.7),
                           fontSize: 10,

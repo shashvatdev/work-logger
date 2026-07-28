@@ -6,11 +6,11 @@ import 'core/providers/app_providers.dart';
 import 'core/api/api_client.dart';
 
 void main() {
-  runApp(const ProviderScope(child: WorkLogApp()));
+  runApp(const ProviderScope(child: WorkNoteApp()));
 }
 
-class WorkLogApp extends ConsumerWidget {
-  const WorkLogApp({super.key});
+class WorkNoteApp extends ConsumerWidget {
+  const WorkNoteApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,7 +34,7 @@ class WorkLogApp extends ConsumerWidget {
       data: (_) {
         final router = ref.watch(appRouterProvider);
         return MaterialApp.router(
-          title: 'WorkLog',
+          title: 'WorkNote',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
@@ -56,7 +56,7 @@ class WorkLogApp extends ConsumerWidget {
       error: (err, stack) {
         final router = ref.watch(appRouterProvider);
         return MaterialApp.router(
-          title: 'WorkLog',
+          title: 'WorkNote',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,

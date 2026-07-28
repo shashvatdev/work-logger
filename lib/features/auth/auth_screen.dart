@@ -132,7 +132,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
                     // ── Heading ──────────────────────────────────────────────
                     Text(
-                      'WorkLog',
+                      'WorkNote',
                       style: Theme.of(context).textTheme.displayLarge,
                     ),
                     const SizedBox(height: 6),
