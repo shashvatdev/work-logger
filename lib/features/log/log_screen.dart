@@ -204,6 +204,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
     await Future.delayed(const Duration(milliseconds: 500));
 
     final repo = LogRepository();
+    ApiResult<DailyLogModel> result;
     
     if (_existingLog != null) {
       final entriesData = _editors!.map((e) => <String, dynamic>{
@@ -212,7 +213,7 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         'description': e.controller.text.trim(),
       }).toList();
       
-      await repo.updateLog(
+      result = await repo.updateLog(
         logId: _existingLog!.id,
         entries: entriesData,
         deletedEntryIds: _deletedEntryIds,
@@ -222,15 +223,34 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         'projectId': e.entry.projectId,
         'description': e.controller.text.trim(),
       }).toList();
-      await repo.createLog(entries: entriesData);
+      result = await repo.createLog(entries: entriesData);
+    }
+
+    if (result is ApiError) {
+      final errorMsg = (result as ApiError).error.message;
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg.isNotEmpty ? errorMsg : 'Failed to save log. Please try again.'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+      return;
     }
 
     ref.invalidate(todayLogProvider);
 
-    setState(() {
-      _saving = false;
-      _saved = true;
-    });
+    if (mounted) {
+      setState(() {
+        _saving = false;
+        _saved = true;
+      });
+    }
 
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
@@ -332,7 +352,9 @@ class _LogScreenState extends ConsumerState<LogScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) => SafeArea(
-        child: Column(
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -424,7 +446,8 @@ class _LogScreenState extends ConsumerState<LogScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Future<void> _pickAttachment(int index, AttachmentSource source) async {
