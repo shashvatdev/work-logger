@@ -1,44 +1,45 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 
-class AdminShell extends ConsumerWidget {
-  final Widget child;
-  const AdminShell({super.key, required this.child});
+class AdminShell extends StatelessWidget {
+  final StatefulNavigationShell navigationShell;
+  const AdminShell({super.key, required this.navigationShell});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final location = GoRouterState.of(context).matchedLocation;
-
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background(context),
-      body: child,
-      bottomNavigationBar: _AdminBottomBar(currentLocation: location),
+      // IndexedStack is managed internally by StatefulShellRoute —
+      // each branch keeps its own Navigator alive.
+      body: navigationShell,
+      bottomNavigationBar: _AdminBottomBar(
+        currentIndex: navigationShell.currentIndex,
+        onTap: (index) => navigationShell.goBranch(
+          index,
+          // If user taps the already-selected tab, pop back to its root.
+          initialLocation: index == navigationShell.currentIndex,
+        ),
+      ),
     );
   }
 }
 
-class _AdminBottomBar extends ConsumerWidget {
-  final String currentLocation;
-  const _AdminBottomBar({required this.currentLocation});
+class _AdminBottomBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  const _AdminBottomBar({
+    required this.currentIndex,
+    required this.onTap,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final items = [
-      _BarItem(
-          icon: Icons.people_outline_rounded,
-          label: 'Team',
-          route: '/admin/employees'),
-      _BarItem(
-          icon: Icons.folder_open_outlined,
-          label: 'Projects',
-          route: '/admin/projects'),
-      _BarItem(
-          icon: Icons.search_rounded,
-          label: 'Search',
-          route: '/search'),
+  Widget build(BuildContext context) {
+    const items = [
+      _BarItem(icon: Icons.people_outline_rounded, label: 'Team'),
+      _BarItem(icon: Icons.folder_open_outlined, label: 'Projects'),
+      _BarItem(icon: Icons.search_rounded, label: 'Search'),
     ];
 
     return SafeArea(
@@ -52,7 +53,7 @@ class _AdminBottomBar extends ConsumerWidget {
           boxShadow: Theme.of(context).brightness == Brightness.light
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 4),
                   )
@@ -60,42 +61,52 @@ class _AdminBottomBar extends ConsumerWidget {
               : null,
         ),
         child: Row(
-          children: items.map((item) {
-            final selected = currentLocation.startsWith(item.route);
+          children: List.generate(items.length, (index) {
+            final selected = currentIndex == index;
             return Expanded(
               child: GestureDetector(
-                onTap: () => context.go(item.route),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onTap(index),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        item.icon,
-                        color: selected
-                            ? AppColors.accent
-                            : AppColors.textSecondary(context),
-                        size: 22,
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          items[index].icon,
+                          key: ValueKey(selected),
+                          color: selected
+                              ? AppColors.accent
+                              : AppColors.textSecondary(context),
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        item.label,
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: selected
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary(context),
-                              fontSize: 10,
-                              fontWeight: selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                            ),
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  color: selected
+                                      ? AppColors.accent
+                                      : AppColors.textSecondary(context),
+                                  fontSize: 10,
+                                  fontWeight: selected
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ) ??
+                            const TextStyle(),
+                        child: Text(items[index].label),
                       ),
                     ],
                   ),
                 ),
               ),
             );
-          }).toList(),
+          }),
         ),
       ),
     );
@@ -105,7 +116,5 @@ class _AdminBottomBar extends ConsumerWidget {
 class _BarItem {
   final IconData icon;
   final String label;
-  final String route;
-  const _BarItem(
-      {required this.icon, required this.label, required this.route});
+  const _BarItem({required this.icon, required this.label});
 }

@@ -56,16 +56,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
 
       // ── Admin routes ───────────────────────────────────────────────────────
-      ShellRoute(
-        builder: (context, state, child) => AdminShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/admin/employees',
-            builder: (_, __) => const AdminEmployeesScreen(),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            AdminShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/admin/employees',
+                builder: (_, __) => const AdminEmployeesScreen(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/admin/projects',
-            builder: (_, __) => const AdminProjectListScreen(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/admin/projects',
+                builder: (_, __) => const AdminProjectListScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/search',
+                builder: (_, __) => const SearchScreen(),
+              ),
+            ],
           ),
         ],
       ),

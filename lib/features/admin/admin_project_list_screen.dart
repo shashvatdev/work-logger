@@ -22,14 +22,16 @@ class AdminProjectListScreen extends ConsumerWidget {
         final active = allProjects.where((p) => !p.archived).toList();
         final archived = allProjects.where((p) => p.archived).toList();
 
+        final topPadding = MediaQuery.of(context).padding.top + AppSpacing.sm;
+
         return CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
             // ── Header ──────────────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
+                padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md, topPadding, AppSpacing.md, AppSpacing.xs),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.end,

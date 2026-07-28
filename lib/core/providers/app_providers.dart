@@ -138,7 +138,8 @@ final logForDateProvider = FutureProvider.family<DailyLogModel?, ({String uid, D
 
   return switch (result) {
     ApiSuccess(data: final log) => log,
-    ApiError(exception: final ex) => throw ex,
+    ApiError(exception: final ex) =>
+      (ex.statusCode == 404 || ex.statusCode == 204) ? null : throw ex,
   };
 });
 
@@ -242,32 +243,36 @@ class EmployeeLogsNotifier extends StateNotifier<EmployeeLogsState> {
     final fromFilter = from ?? (reset ? null : state.from);
     final toFilter = to ?? (reset ? null : state.to);
 
-    final repo = UserRepository();
-    final result = await repo.getUserLogs(
-      userId,
-      from: fromFilter,
-      to: toFilter,
-      page: nextPage,
-      pageSize: _pageSize,
-    );
+    try {
+      final repo = UserRepository();
+      final result = await repo.getUserLogs(
+        userId,
+        from: fromFilter,
+        to: toFilter,
+        page: nextPage,
+        pageSize: _pageSize,
+      );
 
-    switch (result) {
-      case ApiSuccess(data: final data):
-        final rawLogs = (data['logs'] as List? ?? []);
-        final newLogs = rawLogs.map((l) => DailyLogModel.fromJson(l)).toList();
-        final total = data['total'] as int? ?? 0;
-        final allLogs = reset ? newLogs : [...state.logs, ...newLogs];
-        state = state.copyWith(
-          logs: allLogs,
-          total: total,
-          page: nextPage + 1,
-          isLoading: false,
-          hasMore: allLogs.length < total,
-          from: fromFilter,
-          to: toFilter,
-        );
-      case ApiError(exception: final ex):
-        state = state.copyWith(isLoading: false, error: ex.message);
+      switch (result) {
+        case ApiSuccess(data: final data):
+          final rawLogs = (data['logs'] as List? ?? []);
+          final newLogs = rawLogs.map((l) => DailyLogModel.fromJson(l)).toList();
+          final total = data['total'] as int? ?? 0;
+          final allLogs = reset ? newLogs : [...state.logs, ...newLogs];
+          state = state.copyWith(
+            logs: allLogs,
+            total: total,
+            page: nextPage + 1,
+            isLoading: false,
+            hasMore: allLogs.length < total,
+            from: fromFilter,
+            to: toFilter,
+          );
+        case ApiError(exception: final ex):
+          state = state.copyWith(isLoading: false, error: ex.message);
+      }
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 

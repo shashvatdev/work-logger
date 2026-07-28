@@ -142,6 +142,11 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
     final logged = filtered.where((u) => u.hasLoggedToday).length;
     final notLogged = filtered.length - logged;
 
+    final topPadding = MediaQuery.of(context).padding.top + AppSpacing.sm;
+
+    final active = filtered.where((u) => u.isActive).toList();
+    final deactivated = filtered.where((u) => !u.isActive).toList();
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
       body: RefreshIndicator(
@@ -155,8 +160,8 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
             // ── Header ──────────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
+                padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md, topPadding, AppSpacing.md, AppSpacing.xs),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -225,23 +230,6 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
               ),
             ),
 
-            // ── Section label ───────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-                child: Text(
-                  'ALL MEMBERS',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontSize: 11,
-                        letterSpacing: 0.8,
-                        color: AppColors.textSecondary(context),
-                      ),
-                ),
-              ),
-            ),
-
-            // ── Employee list ────────────────────────────────────────────────
             if (filtered.isEmpty && _state.isLoading)
               const SliverToBoxAdapter(
                 child: Center(
@@ -266,29 +254,87 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                   ),
                 ),
               )
-            else
-              SliverPadding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                sliver: SliverToBoxAdapter(
-                  child: SurfaceCard(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: [
-                        for (int i = 0; i < filtered.length; i++) ...[
-                          _EmployeeRow(
-                            employee: filtered[i],
-                            onTap: () => context
-                                .push('/admin/employees/${filtered[i].id}'),
+            else ...[
+              // ── Active Members Section ────────────────────────────────────
+              if (active.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                        AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
+                    child: Text(
+                      'ACTIVE MEMBERS (${active.length})',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontSize: 11,
+                            letterSpacing: 0.8,
+                            color: AppColors.textSecondary(context),
                           ),
-                          if (i < filtered.length - 1)
-                            const AppDivider(indent: 72),
-                        ],
-                      ],
                     ),
                   ),
                 ),
-              ),
+                SliverPadding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  sliver: SliverToBoxAdapter(
+                    child: SurfaceCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < active.length; i++) ...[
+                            _EmployeeRow(
+                              employee: active[i],
+                              onTap: () => context
+                                  .push('/admin/employees/${active[i].id}'),
+                            ),
+                            if (i < active.length - 1)
+                              const AppDivider(indent: 72),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              // ── Deactivated Members Section ───────────────────────────────
+              if (deactivated.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                        AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
+                    child: Text(
+                      'DEACTIVATED EMPLOYEES (${deactivated.length})',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            fontSize: 11,
+                            letterSpacing: 0.8,
+                            color: AppColors.error,
+                          ),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  sliver: SliverToBoxAdapter(
+                    child: SurfaceCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < deactivated.length; i++) ...[
+                            _EmployeeRow(
+                              employee: deactivated[i],
+                              onTap: () => context.push(
+                                  '/admin/employees/${deactivated[i].id}'),
+                            ),
+                            if (i < deactivated.length - 1)
+                              const AppDivider(indent: 72),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
 
             // ── Load-more indicator ─────────────────────────────────────────
             if (_state.isLoading && _state.users.isNotEmpty)

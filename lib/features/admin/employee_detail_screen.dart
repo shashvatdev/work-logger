@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -47,8 +48,11 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
   }
 
   Future<void> _refresh() async {
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
     ref.invalidate(employeeDetailProvider(widget.userId));
     ref.invalidate(employeeTodayStatusProvider(widget.userId));
+    ref.invalidate(logForDateProvider((uid: widget.userId, date: todayDate)));
     await ref
         .read(employeeLogsProvider(widget.userId).notifier)
         .load(reset: true);
@@ -174,6 +178,13 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
             centerTitle: true,
             actions: [
               IconButton(
+                icon: const Icon(Icons.calendar_month_outlined),
+                color: AppColors.accent,
+                onPressed: () =>
+                    context.push('/admin/employees/${widget.userId}/calendar'),
+                tooltip: 'Calendar View',
+              ),
+              IconButton(
                 icon: const Icon(Icons.edit_outlined),
                 color: AppColors.accent,
                 onPressed: () => _showEditSheet(employee),
@@ -209,7 +220,10 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md),
-                    child: _TodayStatusCard(todayAsync: todayAsync),
+                    child: _TodayStatusCard(
+                      userId: widget.userId,
+                      todayAsync: todayAsync,
+                    ),
                   ),
                 ),
                 const SliverToBoxAdapter(
@@ -310,7 +324,10 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
                             for (int i = 0;
                                 i < logsState.logs.length;
                                 i++) ...[
-                              _LogRow(log: logsState.logs[i]),
+                              _LogRow(
+                                userId: widget.userId,
+                                log: logsState.logs[i],
+                              ),
                               if (i < logsState.logs.length - 1)
                                 const AppDivider(indent: 16),
                             ],
@@ -449,46 +466,142 @@ class _Badge extends StatelessWidget {
 }
 
 // ─── Today Status Card ────────────────────────────────────────────────────────
-class _TodayStatusCard extends StatelessWidget {
+class _TodayStatusCard extends ConsumerWidget {
+  final String userId;
   final AsyncValue<bool> todayAsync;
-  const _TodayStatusCard({required this.todayAsync});
+  const _TodayStatusCard({required this.userId, required this.todayAsync});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    final todayStr = DateFormat('yyyy-MM-dd').format(now);
+    final todayLogAsync =
+        ref.watch(logForDateProvider((uid: userId, date: todayDate)));
+
     return SurfaceCard(
-      child: Row(
+      onTap: () => context.push('/log/$todayStr?viewUserId=$userId'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.today_rounded,
-              color: AppColors.textSecondary(context), size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Today\'s Log',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ),
-          todayAsync.when(
-            loading: () => const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            error: (_, __) => Icon(Icons.help_outline,
-                color: AppColors.textSecondary(context), size: 20),
-            data: (hasLogged) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  hasLogged ? '✅ Submitted' : '❌ Not Submitted',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: hasLogged
-                            ? AppColors.success
-                            : AppColors.textSecondary(context),
-                        fontWeight: FontWeight.w500,
+          Row(
+            children: [
+              Icon(Icons.today_rounded,
+                  color: AppColors.accent, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  "Today's Log",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                 ),
-              ],
+              ),
+              todayAsync.when(
+                loading: () => const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (hasLogged) => Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (hasLogged ? AppColors.success : AppColors.error)
+                        .withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    hasLogged ? 'Submitted' : 'Not Submitted',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color:
+                              hasLogged ? AppColors.success : AppColors.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary(context), size: 20),
+            ],
+          ),
+          todayLogAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             ),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (log) {
+              if (log == null || log.entries.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'No log entries submitted today.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary(context),
+                        ),
+                  ),
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  const AppDivider(),
+                  const SizedBox(height: 8),
+                  for (final entry in log.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.only(top: 6, right: 8),
+                            decoration: const BoxDecoration(
+                              color: AppColors.accent,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (entry.projectName != null &&
+                                    entry.projectName!.isNotEmpty)
+                                  Text(
+                                    entry.projectName!,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(
+                                          color: AppColors.accent,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                Text(
+                                  entry.description,
+                                  style:
+                                      Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -666,8 +779,9 @@ class _DateChip extends StatelessWidget {
 
 // ─── Log Row ──────────────────────────────────────────────────────────────────
 class _LogRow extends StatelessWidget {
+  final String userId;
   final DailyLogModel log;
-  const _LogRow({required this.log});
+  const _LogRow({required this.userId, required this.log});
 
   @override
   Widget build(BuildContext context) {
@@ -680,64 +794,47 @@ class _LogRow extends StatelessWidget {
       }
     }();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.only(top: 5),
-            decoration: const BoxDecoration(
-              color: AppColors.accent,
-              shape: BoxShape.circle,
+    return InkWell(
+      onTap: () => context.push('/log/${log.date}?viewUserId=$userId'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: AppColors.accent,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  dateFormatted,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                if (log.entries.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  ...log.entries.map((e) => Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          '${e.projectName ?? e.projectId}: ${e.description}',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.textSecondary(context),
-                                  ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      )),
-                ] else
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    '${log.entries.length} entries',
+                    dateFormatted,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${log.entryCount} ${log.entryCount == 1 ? 'entry' : 'entries'}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.textSecondary(context),
                         ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${log.entries.length} ${log.entries.length == 1 ? 'entry' : 'entries'}',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.textSecondary(context),
-                ),
-          ),
-        ],
+            Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary(context), size: 20),
+          ],
+        ),
       ),
     );
   }

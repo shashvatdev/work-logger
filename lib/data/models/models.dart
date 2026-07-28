@@ -128,6 +128,7 @@ class DailyLogModel {
   final String userId;
   final String date; // yyyy-MM-dd (from logDate field)
   final List<LogEntryModel> entries;
+  final int entryCount;
   final DateTime? updatedAt;
   final DateTime? createdAt;
 
@@ -136,6 +137,7 @@ class DailyLogModel {
     required this.userId,
     required this.date,
     required this.entries,
+    this.entryCount = 0,
     this.updatedAt,
     this.createdAt,
   });
@@ -143,11 +145,12 @@ class DailyLogModel {
   factory DailyLogModel.fromJson(Map<String, dynamic> json) {
     final entriesList = json['entries'] as List? ?? [];
     return DailyLogModel(
-      id: json['id'] as String,
-      userId: json['userId'] as String,
-      date: json['logDate'] as String,
+      id: json['id'] as String? ?? '',
+      userId: json['userId'] as String? ?? '',
+      date: json['logDate'] as String? ?? json['date'] as String? ?? '',
       entries:
           entriesList.map((e) => LogEntryModel.fromJson(e)).toList(),
+      entryCount: json['entryCount'] as int? ?? entriesList.length,
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'] as String)
           : null,
@@ -159,6 +162,7 @@ class DailyLogModel {
 
   DailyLogModel copyWith({
     List<LogEntryModel>? entries,
+    int? entryCount,
     DateTime? updatedAt,
   }) {
     return DailyLogModel(
@@ -166,6 +170,7 @@ class DailyLogModel {
       userId: userId,
       date: date,
       entries: entries ?? this.entries,
+      entryCount: entryCount ?? this.entryCount,
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt,
     );
