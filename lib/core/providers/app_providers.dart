@@ -8,6 +8,51 @@ import '../../data/repositories/search_repository.dart';
 import '../api/api_exception.dart';
 import '../api/token_storage.dart';
 
+// ─── Employee Logs State ──────────────────────────────────────────────────────
+class EmployeeLogsState {
+  final List<DailyLogModel> logs;
+  final int total;
+  final int page;
+  final bool isLoading;
+  final bool hasMore;
+  final String? error;
+  final String? from;
+  final String? to;
+
+  const EmployeeLogsState({
+    this.logs = const [],
+    this.total = 0,
+    this.page = 1,
+    this.isLoading = false,
+    this.hasMore = true,
+    this.error,
+    this.from,
+    this.to,
+  });
+
+  EmployeeLogsState copyWith({
+    List<DailyLogModel>? logs,
+    int? total,
+    int? page,
+    bool? isLoading,
+    bool? hasMore,
+    String? error,
+    String? from,
+    String? to,
+  }) {
+    return EmployeeLogsState(
+      logs: logs ?? this.logs,
+      total: total ?? this.total,
+      page: page ?? this.page,
+      isLoading: isLoading ?? this.isLoading,
+      hasMore: hasMore ?? this.hasMore,
+      error: error,
+      from: from ?? this.from,
+      to: to ?? this.to,
+    );
+  }
+}
+
 // ─── Current User ────────────────────────────────────────────────────────────
 final currentUserProvider = StateProvider<UserModel?>((ref) => null);
 
@@ -159,3 +204,78 @@ final searchResultsProvider = FutureProvider<List<SearchResult>>((ref) async {
     ApiError(exception: final ex) => throw ex,
   };
 });
+
+// ─── Employee Detail (Admin) ──────────────────────────────────────────────────
+final employeeDetailProvider = FutureProvider.family<UserModel, String>((ref, uid) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null || !user.isAdmin) throw Exception('Unauthorized');
+  final repo = UserRepository();
+  final result = await repo.getUserById(uid);
+  return switch (result) {
+    ApiSuccess(data: final u) => u,
+    ApiError(exception: final ex) => throw ex,
+  };
+});
+
+// ─── Employee Logs Notifier (paginated, with date filter) ─────────────────────
+class EmployeeLogsNotifier extends StateNotifier<EmployeeLogsState> {
+  final String userId;
+  static const int _pageSize = 20;
+
+  EmployeeLogsNotifier(this.userId, Ref ref) : super(const EmployeeLogsState());
+
+  Future<void> load({bool reset = false, String? from, String? to}) async {
+    if (state.isLoading) return;
+    if (!reset && !state.hasMore) return;
+
+    final nextPage = reset ? 1 : state.page;
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      logs: reset ? [] : state.logs,
+      page: nextPage,
+      hasMore: reset ? true : state.hasMore,
+      from: from ?? (reset ? null : state.from),
+      to: to ?? (reset ? null : state.to),
+    );
+
+    final fromFilter = from ?? (reset ? null : state.from);
+    final toFilter = to ?? (reset ? null : state.to);
+
+    final repo = UserRepository();
+    final result = await repo.getUserLogs(
+      userId,
+      from: fromFilter,
+      to: toFilter,
+      page: nextPage,
+      pageSize: _pageSize,
+    );
+
+    switch (result) {
+      case ApiSuccess(data: final data):
+        final rawLogs = (data['logs'] as List? ?? []);
+        final newLogs = rawLogs.map((l) => DailyLogModel.fromJson(l)).toList();
+        final total = data['total'] as int? ?? 0;
+        final allLogs = reset ? newLogs : [...state.logs, ...newLogs];
+        state = state.copyWith(
+          logs: allLogs,
+          total: total,
+          page: nextPage + 1,
+          isLoading: false,
+          hasMore: allLogs.length < total,
+          from: fromFilter,
+          to: toFilter,
+        );
+      case ApiError(exception: final ex):
+        state = state.copyWith(isLoading: false, error: ex.message);
+    }
+  }
+
+  Future<void> applyDateFilter(String? from, String? to) async {
+    await load(reset: true, from: from, to: to);
+  }
+}
+
+final employeeLogsProvider = StateNotifierProvider.family<EmployeeLogsNotifier, EmployeeLogsState, String>(
+  (ref, userId) => EmployeeLogsNotifier(userId, ref),
+);

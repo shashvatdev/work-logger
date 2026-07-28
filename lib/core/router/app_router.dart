@@ -9,6 +9,8 @@ import '../../features/calendar/calendar_screen.dart';
 import '../../features/search/search_screen.dart';
 import '../../features/admin/admin_shell.dart';
 import '../../features/admin/admin_employees_screen.dart';
+import '../../features/admin/add_employee_screen.dart';
+import '../../features/admin/employee_detail_screen.dart';
 import '../../features/admin/admin_project_list_screen.dart';
 import '../../features/admin/admin_project_detail_screen.dart';
 import '../../features/admin/admin_employee_calendar_screen.dart';
@@ -72,6 +74,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) {
           final id = state.pathParameters['id']!;
           return AdminProjectDetailScreen(projectId: id);
+        },
+      ),
+      // /admin/employees/add must come BEFORE /admin/employees/:uid
+      GoRoute(
+        path: '/admin/employees/add',
+        builder: (_, __) => const AddEmployeeScreen(),
+      ),
+      GoRoute(
+        path: '/admin/employees/:uid',
+        builder: (_, state) {
+          final uid = state.pathParameters['uid']!;
+          return EmployeeDetailScreen(userId: uid);
         },
       ),
       GoRoute(
