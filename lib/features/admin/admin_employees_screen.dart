@@ -6,7 +6,6 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/models/models.dart';
-import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../core/api/api_exception.dart';
 
@@ -149,6 +148,7 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
+      drawer: const AppDrawer(),
       body: RefreshIndicator(
         onRefresh: _refresh,
         color: AppColors.accent,
@@ -195,20 +195,15 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                               _refresh();
                             }),
                             const SizedBox(width: AppSpacing.sm),
-                            GestureDetector(
-                              onTap: () async {
-                                await AuthRepository().logout();
-                                ref
-                                    .read(currentUserProvider.notifier)
-                                    .state = null;
-                                ref.invalidate(allUsersProvider);
-                                ref.invalidate(allProjectsProvider);
-                                ref.invalidate(myProjectsProvider);
-                                ref.invalidate(todayLogProvider);
-                              },
-                              child: InitialsAvatar(
-                                  name: currentUser?.name ?? 'Admin',
-                                  radius: 20),
+                            Builder(
+                              builder: (scaffoldContext) => GestureDetector(
+                                onTap: () {
+                                  Scaffold.of(scaffoldContext).openDrawer();
+                                },
+                                child: InitialsAvatar(
+                                    name: currentUser?.name ?? 'Admin',
+                                    radius: 20),
+                              ),
                             ),
                           ],
                         ),

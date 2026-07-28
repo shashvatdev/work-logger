@@ -28,6 +28,7 @@ class WorkLogApp extends ConsumerWidget {
     };
 
     final authCheck = ref.watch(authCheckProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return authCheck.when(
       data: (_) {
@@ -37,7 +38,7 @@ class WorkLogApp extends ConsumerWidget {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.system,
+          themeMode: themeMode,
           routerConfig: router,
         );
       },
@@ -45,7 +46,7 @@ class WorkLogApp extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
-        themeMode: ThemeMode.system,
+        themeMode: themeMode,
         home: const Scaffold(
           body: Center(
             child: CircularProgressIndicator(),
@@ -59,7 +60,7 @@ class WorkLogApp extends ConsumerWidget {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.system,
+          themeMode: themeMode,
           routerConfig: router,
         );
       },

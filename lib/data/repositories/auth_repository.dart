@@ -56,4 +56,33 @@ class AuthRepository {
       return ApiError(ApiException.fromDio(e));
     }
   }
+
+  /// POST /auth/change-password
+  Future<ApiResult<void>> changePassword({
+    required String email,
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final resp = await _dio.post(
+        ApiEndpoints.changePassword,
+        data: {
+          'email': email,
+          'oldPassword': oldPassword,
+          'newPassword': newPassword,
+        },
+      );
+
+      if (resp.statusCode == 204 || resp.statusCode == 200) {
+        return const ApiSuccess(null);
+      }
+
+      return ApiError(ApiException(
+        statusCode: resp.statusCode,
+        message: resp.data?['message'] ?? 'Failed to change password.',
+      ));
+    } on DioException catch (e) {
+      return ApiError(ApiException.fromDio(e));
+    }
+  }
 }

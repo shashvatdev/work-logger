@@ -9,6 +9,7 @@ import '../../core/widgets/widgets.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../core/api/api_exception.dart';
 import '../../data/models/models.dart';
+import 'change_password_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -203,7 +204,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                       onPressed: _signIn,
                     ),
 
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Change Password link ─────────────────────────────────
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ChangePasswordScreen(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'Change Password?',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: AppColors.accent,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: AppSpacing.lg),
 
                     // ── Demo accounts shortcuts ──────────────────────────────
                     Center(

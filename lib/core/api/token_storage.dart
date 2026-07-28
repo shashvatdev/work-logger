@@ -10,6 +10,7 @@ class TokenStorage {
 
   static const _keyAccess = 'access_token';
   static const _keyRefresh = 'refresh_token';
+  static const _keyThemeMode = 'theme_mode';
 
   static Future<void> saveTokens({
     required String accessToken,
@@ -26,6 +27,12 @@ class TokenStorage {
 
   static Future<String?> getRefreshToken() =>
       _storage.read(key: _keyRefresh);
+
+  static Future<String?> getThemeMode() =>
+      _storage.read(key: _keyThemeMode);
+
+  static Future<void> saveThemeMode(String modeName) =>
+      _storage.write(key: _keyThemeMode, value: modeName);
 
   static Future<void> clearAll() async {
     await Future.wait([

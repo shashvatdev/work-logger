@@ -6,7 +6,6 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/utils/date_extensions.dart';
-import '../../data/repositories/auth_repository.dart';
 import '../../data/models/models.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -47,6 +46,7 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
+      drawer: const AppDrawer(),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
@@ -208,15 +208,13 @@ class _TopActions extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
-        GestureDetector(
-          onTap: () async {
-            await AuthRepository().logout();
-            ref.read(currentUserProvider.notifier).state = null;
-            ref.invalidate(allProjectsProvider);
-            ref.invalidate(myProjectsProvider);
-            ref.invalidate(todayLogProvider);
-          },
-          child: InitialsAvatar(name: user.name, radius: 20),
+        Builder(
+          builder: (scaffoldContext) => GestureDetector(
+            onTap: () {
+              Scaffold.of(scaffoldContext).openDrawer();
+            },
+            child: InitialsAvatar(name: user.name, radius: 20),
+          ),
         ),
       ],
     );

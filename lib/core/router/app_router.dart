@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/app_providers.dart';
 import '../../features/auth/auth_screen.dart';
+import '../../features/auth/change_password_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/log/log_screen.dart';
 import '../../features/calendar/calendar_screen.dart';
@@ -26,8 +27,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loggedIn = currentUser != null;
       final onAuth = state.matchedLocation == '/auth';
+      final isPublic = onAuth || state.matchedLocation == '/change-password';
 
-      if (!loggedIn && !onAuth) return '/auth';
+      if (!loggedIn && !isPublic) return '/auth';
       if (loggedIn && onAuth) {
         return currentUser.isAdmin ? '/admin/employees' : '/home';
       }
@@ -35,6 +37,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/auth', builder: (_, __) => const AuthScreen()),
+      GoRoute(
+          path: '/change-password',
+          builder: (_, __) => const ChangePasswordScreen()),
 
       // ── Employee routes ────────────────────────────────────────────────────
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),

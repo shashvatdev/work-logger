@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
+export 'app_drawer.dart';
 
 /// A premium surface card styled like iOS grouped table cells.
 class SurfaceCard extends StatelessWidget {

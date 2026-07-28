@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../data/models/models.dart';
@@ -52,6 +53,37 @@ class EmployeeLogsState {
     );
   }
 }
+
+// ─── Theme Mode ─────────────────────────────────────────────────────────────
+class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+  ThemeModeNotifier() : super(ThemeMode.light) {
+    _initTheme();
+  }
+
+  Future<void> _initTheme() async {
+    final savedMode = await TokenStorage.getThemeMode();
+    if (savedMode == 'dark') {
+      state = ThemeMode.dark;
+    } else {
+      state = ThemeMode.light;
+    }
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    state = mode;
+    await TokenStorage.saveThemeMode(mode.name);
+  }
+
+  Future<void> toggleDarkMode(bool isDark) async {
+    final newMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    await setThemeMode(newMode);
+  }
+}
+
+final themeModeProvider =
+    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+  return ThemeModeNotifier();
+});
 
 // ─── Current User ────────────────────────────────────────────────────────────
 final currentUserProvider = StateProvider<UserModel?>((ref) => null);
