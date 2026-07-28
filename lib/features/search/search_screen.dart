@@ -49,7 +49,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/home');
+              final user = ref.read(currentUserProvider);
+              if (user?.isAdmin == true) {
+                context.go('/admin/employees');
+              } else {
+                context.go('/home');
+              }
             }
           },
         ),
@@ -153,18 +158,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 }
 
-class _SearchResultCard extends StatelessWidget {
+class _SearchResultCard extends ConsumerWidget {
   final dynamic result;
   const _SearchResultCard({required this.result});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dateDisplay = _formatDate(result.date);
-    final currentUser = ProviderScope.containerOf(context)
-        .read(currentUserProvider);
+    final currentUser = ref.watch(currentUserProvider);
     final showEmployee = currentUser?.isAdmin ?? false;
 
     return SurfaceCard(
+      onTap: () {
+        final isSelf = currentUser != null && currentUser.id == result.userId;
+        final viewQuery = (!isSelf && showEmployee) ? '&viewUserId=${result.userId}' : '';
+        final projQuery = result.projectId.isNotEmpty ? '?projectId=${result.projectId}$viewQuery' : (viewQuery.isNotEmpty ? '?${viewQuery.substring(1)}' : '');
+        context.push('/log/${result.date}$projQuery');
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

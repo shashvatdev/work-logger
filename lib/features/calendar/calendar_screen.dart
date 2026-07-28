@@ -48,7 +48,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/home');
+              final user = ref.read(currentUserProvider);
+              if (user?.isAdmin == true) {
+                context.go('/admin/employees');
+              } else {
+                context.go('/home');
+              }
             }
           },
         ),
