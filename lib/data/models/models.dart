@@ -75,10 +75,15 @@ class ProjectModel {
 
   factory ProjectModel.fromJson(Map<String, dynamic> json) {
     // Members may come as a list of member objects (GET /projects/{id})
-    // or as a memberCount int (GET /projects list view)
+    // or as memberUserIds array (GET /projects list view)
     final membersList = json['members'] as List?;
+    final memberUserIdsList = json['memberUserIds'] as List?;
+
     final memberIds = membersList
             ?.map((m) => m['userId'] as String)
+            .toList() ??
+        memberUserIdsList
+            ?.map((id) => id.toString())
             .toList() ??
         [];
 
