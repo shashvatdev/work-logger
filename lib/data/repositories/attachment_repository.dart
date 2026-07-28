@@ -29,9 +29,10 @@ class AttachmentRepository {
       );
 
       if (resp.statusCode == 201) return ApiSuccess(resp.data);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Upload failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Upload failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -43,9 +44,10 @@ class AttachmentRepository {
     try {
       final resp = await _dio.post(ApiEndpoints.attachmentDelete(id));
       if (resp.statusCode == 204) return const ApiSuccess(null);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Delete failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Delete failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -57,9 +59,10 @@ class AttachmentRepository {
     try {
       final resp = await _dio.get(ApiEndpoints.attachmentDownload(id));
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));

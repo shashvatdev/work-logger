@@ -143,7 +143,8 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
 
     final topPadding = MediaQuery.of(context).padding.top + AppSpacing.sm;
 
-    final active = filtered.where((u) => u.isActive).toList();
+    final employees = filtered.where((u) => u.isActive && !u.isAdmin).toList();
+    final admins = filtered.where((u) => u.isActive && u.isAdmin).toList();
     final deactivated = filtered.where((u) => !u.isActive).toList();
 
     return Scaffold(
@@ -268,18 +269,18 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                 ),
               )
             else ...[
-              // ── Active Members Section ────────────────────────────────────
-              if (active.isNotEmpty) ...[
+              // ── Employees Section ──────────────────────────────────────────
+              if (employees.isNotEmpty) ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.md,
                         AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle_outline, size: 14, color: AppColors.textSecondary(context)),
+                        Icon(Icons.badge_outlined, size: 14, color: AppColors.textSecondary(context)),
                         const SizedBox(width: 4),
                         Text(
-                          'ACTIVE MEMBERS (${active.length})',
+                          'EMPLOYEES (${employees.length})',
                           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                                 fontSize: 11,
                                 letterSpacing: 0.8,
@@ -298,16 +299,69 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                       padding: EdgeInsets.zero,
                       child: Column(
                         children: [
-                          for (int i = 0; i < active.length; i++) ...[
+                          for (int i = 0; i < employees.length; i++) ...[
                             StaggeredItem(
                               index: i,
                               child: _EmployeeRow(
-                                employee: active[i],
-                                onTap: () => context
-                                    .push('/admin/employees/${active[i].id}'),
+                                employee: employees[i],
+                                onTap: () async {
+                                  await context.push('/admin/employees/${employees[i].id}');
+                                  _refresh();
+                                },
                               ),
                             ),
-                            if (i < active.length - 1)
+                            if (i < employees.length - 1)
+                              const AppDivider(indent: 72),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              // ── Admins Section ────────────────────────────────────────────
+              if (admins.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                        AppSpacing.xl, AppSpacing.md, AppSpacing.xs),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.admin_panel_settings_outlined, size: 14, color: AppColors.accent),
+                        const SizedBox(width: 4),
+                        Text(
+                          'ADMINS (${admins.length})',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                                color: AppColors.accent,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                  sliver: SliverToBoxAdapter(
+                    child: SurfaceCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          for (int i = 0; i < admins.length; i++) ...[
+                            StaggeredItem(
+                              index: i,
+                              child: _EmployeeRow(
+                                employee: admins[i],
+                                onTap: () async {
+                                  await context.push('/admin/employees/${admins[i].id}');
+                                  _refresh();
+                                },
+                              ),
+                            ),
+                            if (i < admins.length - 1)
                               const AppDivider(indent: 72),
                           ],
                         ],
@@ -328,7 +382,7 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                         const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.error),
                         const SizedBox(width: 4),
                         Text(
-                          'DEACTIVATED EMPLOYEES (${deactivated.length})',
+                          'DEACTIVATED (${deactivated.length})',
                           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                                 fontSize: 11,
                                 letterSpacing: 0.8,
@@ -352,8 +406,10 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                               index: i,
                               child: _EmployeeRow(
                                 employee: deactivated[i],
-                                onTap: () => context.push(
-                                    '/admin/employees/${deactivated[i].id}'),
+                                onTap: () async {
+                                  await context.push('/admin/employees/${deactivated[i].id}');
+                                  _refresh();
+                                },
                               ),
                             ),
                             if (i < deactivated.length - 1)

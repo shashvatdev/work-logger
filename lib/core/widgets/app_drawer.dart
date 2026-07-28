@@ -6,6 +6,10 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'widgets.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../data/repositories/user_repository.dart';
+import '../api/api_client.dart';
+import '../api/api_exception.dart';
+import '../api/token_storage.dart';
 import '../../features/auth/change_password_screen.dart';
 
 class AppDrawer extends ConsumerWidget {
@@ -312,6 +316,8 @@ class AppDrawer extends ConsumerWidget {
 
   // ── Delete Account Action ─────────────────────────────────────────────────
   void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.read(currentUserProvider);
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -319,12 +325,11 @@ class AppDrawer extends ConsumerWidget {
           children: [
             Icon(Icons.warning_amber_rounded, color: AppColors.error),
             const SizedBox(width: 8),
-            const Text('Delete Account'),
+            const Text('Delete Account?'),
           ],
         ),
         content: const Text(
-          'As per App Store & Google Play Store guidelines, you can request account and data deletion.\n\n'
-          'Are you sure you want to request permanent deletion of your account and all associated work logs? This action cannot be undone.',
+          'This action is PERMANENT. All data associated with this employee will be deleted from the database and cannot be recovered.\n\nAre you sure you want to proceed?',
         ),
         actions: [
           TextButton(
@@ -340,22 +345,38 @@ class AppDrawer extends ConsumerWidget {
               final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(ctx);
 
-              await AuthRepository().logout();
-              ref.read(currentUserProvider.notifier).state = null;
-              ref.invalidate(allProjectsProvider);
-              ref.invalidate(myProjectsProvider);
-              ref.invalidate(todayLogProvider);
+              if (currentUser == null) return;
 
-              messenger.showSnackBar(
-                const SnackBar(
-                  content: Text(
-                      'Account deletion request submitted. Session ended.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-              router.go('/auth');
+              final repo = UserRepository();
+              final result = await repo.deleteUser(currentUser.id);
+
+              switch (result) {
+                case ApiSuccess():
+                  await TokenStorage.clearAll();
+                  ApiClient.reset();
+                  ref.read(currentUserProvider.notifier).state = null;
+                  ref.invalidate(allProjectsProvider);
+                  ref.invalidate(myProjectsProvider);
+                  ref.invalidate(todayLogProvider);
+                  ref.invalidate(allUsersProvider);
+
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Account permanently deleted.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  router.go('/auth');
+                case ApiError(exception: final ex):
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(ex.message),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+              }
             },
-            child: const Text('Delete Account',
+            child: const Text('Yes, Delete Permanently',
                 style: TextStyle(color: Colors.white)),
           ),
         ],

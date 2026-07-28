@@ -12,6 +12,35 @@ class ApiException implements Exception {
     this.errors,
   });
 
+  /// Parse from non-2xx Response safely
+  factory ApiException.fromResponse(int? statusCode, dynamic data, String fallbackMessage) {
+    String message = fallbackMessage;
+    Map<String, dynamic>? errors;
+
+    if (data is Map<String, dynamic>) {
+      if (data['message'] != null && data['message'].toString().isNotEmpty) {
+        message = data['message'].toString();
+      }
+      if (data['errors'] is Map<String, dynamic>) {
+        errors = data['errors'] as Map<String, dynamic>;
+      }
+    } else if (data is String && data.trim().isNotEmpty) {
+      message = data;
+    } else if (statusCode == 403) {
+      message = 'Access denied. You do not have permission to perform this action.';
+    } else if (statusCode == 401) {
+      message = 'Unauthorized access.';
+    } else if (statusCode == 404) {
+      message = 'Requested resource not found.';
+    }
+
+    return ApiException(
+      statusCode: statusCode,
+      message: message,
+      errors: errors,
+    );
+  }
+
   /// Parse from Dio error
   factory ApiException.fromDio(DioException e) {
     final response = e.response;

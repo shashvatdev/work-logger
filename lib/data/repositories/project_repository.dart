@@ -25,9 +25,10 @@ class ProjectRepository {
             .toList();
         return ApiSuccess(list);
       }
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to load projects',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to load projects',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -45,9 +46,10 @@ class ProjectRepository {
         if (description != null) 'description': description,
       });
       if (resp.statusCode == 201) return ApiSuccess(ProjectModel.fromJson(resp.data));
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to create project',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to create project',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -59,9 +61,10 @@ class ProjectRepository {
     try {
       final resp = await _dio.get(ApiEndpoints.projectById(id));
       if (resp.statusCode == 200) return ApiSuccess(ProjectModel.fromJson(resp.data));
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Project not found',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Project not found',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -80,9 +83,10 @@ class ProjectRepository {
         if (description != null) 'description': description,
       });
       if (resp.statusCode == 200) return ApiSuccess(ProjectModel.fromJson(resp.data));
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Update failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Update failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -94,9 +98,10 @@ class ProjectRepository {
     try {
       final resp = await _dio.post(ApiEndpoints.projectDelete(id));
       if (resp.statusCode == 204) return const ApiSuccess(null);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Delete failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Delete failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -112,9 +117,10 @@ class ProjectRepository {
         data: {'isArchived': isArchived},
       );
       if (resp.statusCode == 200) return ApiSuccess(ProjectModel.fromJson(resp.data));
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Archive failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Archive failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -131,9 +137,10 @@ class ProjectRepository {
             (resp.data as List).cast<Map<String, dynamic>>();
         return ApiSuccess(list);
       }
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -149,9 +156,10 @@ class ProjectRepository {
         data: {'userId': userId},
       );
       if (resp.statusCode == 201) return const ApiSuccess(null);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to assign member',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to assign member',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -165,9 +173,10 @@ class ProjectRepository {
       final resp =
           await _dio.post(ApiEndpoints.projectMemberRemove(projectId, userId));
       if (resp.statusCode == 204) return const ApiSuccess(null);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to remove member',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to remove member',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -186,9 +195,10 @@ class ProjectRepository {
         queryParameters: {'page': page, 'pageSize': pageSize},
       );
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to load timeline',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to load timeline',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));

@@ -68,6 +68,8 @@ class HomeScreen extends ConsumerWidget {
           onRefresh: () async {
             ref.invalidate(myProjectsProvider);
             ref.invalidate(todayLogProvider);
+            ref.invalidate(allUsersProvider);
+            ref.invalidate(allProjectsProvider);
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),

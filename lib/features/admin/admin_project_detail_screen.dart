@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
+import '../../core/utils/date_extensions.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/project_repository.dart';
 
@@ -497,7 +498,7 @@ class _TimelineItem extends StatelessWidget {
                                       size: 10, color: AppColors.accent),
                                   const SizedBox(width: 3),
                                   Text(
-                                    entry.timeSpent!,
+                                    formatTotalTimeString(entry.timeSpent!),
                                     style: Theme.of(context)
                                         .textTheme
                                         .labelSmall
@@ -516,13 +517,11 @@ class _TimelineItem extends StatelessWidget {
 
                       const SizedBox(height: 4),
                       Text(
-                        entry.description,
+                        entry.description.withBulletSpacing,
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
                             ?.copyWith(height: 1.6),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

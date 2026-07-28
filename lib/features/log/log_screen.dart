@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -240,6 +241,59 @@ class _LogScreenState extends ConsumerState<LogScreen>
       return;
     }
 
+    double totalDayMins = 0;
+    for (final ed in _editors!) {
+      double edMins = 0;
+      for (final task in ed.tasks) {
+        final raw = task.timeCtrl.text.trim();
+        if (raw.isNotEmpty) {
+          edMins += parseTimeToMinutes(raw);
+        }
+      }
+      if (edMins > 0) {
+        totalDayMins += edMins;
+      } else if (ed.entry.timeSpent != null && ed.entry.timeSpent!.isNotEmpty) {
+        totalDayMins += parseTimeToMinutes(ed.entry.timeSpent!);
+      }
+    }
+
+    if (totalDayMins < 480) {
+      final shouldContinue = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+              SizedBox(width: 8),
+              Text('Warning', style: TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: const Text('Your total time is less than 8 hours.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Close'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Continue Anyway', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldContinue != true) {
+        return;
+      }
+    }
+
     setState(() => _saving = true);
 
     final repo = LogRepository();
@@ -314,10 +368,17 @@ class _LogScreenState extends ConsumerState<LogScreen>
           _saved = true;
         });
         _savedAnimCtrl.forward(from: 0.0);
-        await Future.delayed(const Duration(milliseconds: 1400));
+        await Future.delayed(const Duration(milliseconds: 1000));
         if (mounted) {
           _savedAnimCtrl.reverse();
           setState(() => _saved = false);
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            final targetRoute =
+                (user.isAdmin == true) ? '/admin/employees' : '/home';
+            context.go(targetRoute);
+          }
         }
       }
     } else {
@@ -827,6 +888,24 @@ class _LogScreenState extends ConsumerState<LogScreen>
   @override
   Widget build(BuildContext context) {
     final myProjects = ref.watch(myProjectsProvider);
+    double totalDayMins = 0;
+    if (_editors != null) {
+      for (final ed in _editors!) {
+        double edMins = 0;
+        for (final task in ed.tasks) {
+          final raw = task.timeCtrl.text.trim();
+          if (raw.isNotEmpty) {
+            edMins += parseTimeToMinutes(raw);
+          }
+        }
+        if (edMins > 0) {
+          totalDayMins += edMins;
+        } else if (ed.entry.timeSpent != null && ed.entry.timeSpent!.isNotEmpty) {
+          totalDayMins += parseTimeToMinutes(ed.entry.timeSpent!);
+        }
+      }
+    }
+    final dayTotalStr = formatMinutesToDisplay(totalDayMins);
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -834,21 +913,57 @@ class _LogScreenState extends ConsumerState<LogScreen>
         backgroundColor: AppColors.background(context),
         surfaceTintColor: Colors.transparent,
         leading: const BackButton(),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              _isEditable ? "Today's Log" : widget.date.shortDate,
-              style: Theme.of(context).textTheme.titleLarge,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _isEditable ? "Today's Log" : widget.date.shortDate,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (!_isEditable)
+                  Text(
+                    'Read only',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: AppColors.textSecondary(context),
+                          fontSize: 11,
+                        ),
+                  ),
+              ],
             ),
-            if (!_isEditable)
-              Text(
-                'Read only',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppColors.textSecondary(context),
-                      fontSize: 11,
+            if (dayTotalStr.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.accent.withOpacity(0.3),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.access_time_filled_rounded,
+                        size: 11, color: AppColors.accent),
+                    const SizedBox(width: 4),
+                    Text(
+                      dayTotalStr,
+                      style: const TextStyle(
+                        color: AppColors.accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
+                  ],
+                ),
               ),
+            ],
           ],
         ),
         actions: [
@@ -1184,54 +1299,31 @@ String _compileTasksDescription(List<_TaskItemEditor> tasks) {
     final d = t.descCtrl.text.trim();
     final time = t.timeCtrl.text.trim();
     return time.isNotEmpty ? '• $d ($time)' : '• $d';
-  }).join('\n');
+  }).join('\n\n');
 }
 
 String _calculateTotalTime(List<_TaskItemEditor> tasks, String? fallbackTime) {
-  double totalHours = 0;
-  bool foundNumeric = false;
+  double totalMins = 0;
+  bool foundAny = false;
 
   for (final t in tasks) {
-    final raw = t.timeCtrl.text.trim().toLowerCase();
+    final raw = t.timeCtrl.text.trim();
     if (raw.isEmpty) continue;
-
-    if (raw.endsWith('h')) {
-      final val = double.tryParse(raw.replaceAll('h', '').trim());
-      if (val != null) {
-        totalHours += val;
-        foundNumeric = true;
-      }
-    } else if (raw.endsWith('m')) {
-      final val = double.tryParse(raw.replaceAll('m', '').trim());
-      if (val != null) {
-        totalHours += val / 60.0;
-        foundNumeric = true;
-      }
-    } else {
-      final val = double.tryParse(raw);
-      if (val != null) {
-        totalHours += val;
-        foundNumeric = true;
-      }
+    final mins = parseTimeToMinutes(raw);
+    if (mins > 0) {
+      totalMins += mins;
+      foundAny = true;
     }
   }
 
-  if (foundNumeric && totalHours > 0) {
-    if (totalHours == totalHours.roundToDouble()) {
-      return '${totalHours.toInt()}h';
-    } else {
-      return '${totalHours.toStringAsFixed(1)}h';
-    }
+  if (foundAny && totalMins > 0) {
+    return formatMinutesToDisplay(totalMins);
   }
 
-  final nonNumeric = tasks
-      .map((t) => t.timeCtrl.text.trim())
-      .where((s) => s.isNotEmpty)
-      .toList();
-  if (nonNumeric.isNotEmpty) {
-    return nonNumeric.join(', ');
+  if (fallbackTime != null && fallbackTime.isNotEmpty) {
+    return formatTotalTimeString(fallbackTime);
   }
-  return fallbackTime ?? '';
+  return '';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

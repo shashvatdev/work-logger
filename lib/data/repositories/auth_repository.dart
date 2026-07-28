@@ -29,9 +29,10 @@ class AuthRepository {
         return ApiSuccess(data);
       }
 
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Login failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Login failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -77,9 +78,10 @@ class AuthRepository {
         return const ApiSuccess(null);
       }
 
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to change password.',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to change password.',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));

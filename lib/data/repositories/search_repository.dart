@@ -34,9 +34,10 @@ class SearchRepository {
       );
 
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Search failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Search failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));

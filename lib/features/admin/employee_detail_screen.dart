@@ -7,6 +7,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/api/api_exception.dart';
+import '../../core/utils/date_extensions.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/user_repository.dart';
 
@@ -73,15 +74,15 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
     );
   }
 
-  Future<void> _confirmDeactivate(UserModel employee) async {
+  Future<void> _showDeleteConfirmation(BuildContext context, String userId) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.elevated(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Deactivate Employee'),
-        content: Text(
-          'Are you sure you want to deactivate ${employee.name}? This action soft-deletes the account.',
+        title: const Text('Delete Employee?'),
+        content: const Text(
+          'This action is PERMANENT. All data associated with this employee will be deleted from the database and cannot be recovered.\n\nAre you sure you want to proceed?',
         ),
         actions: [
           TextButton(
@@ -91,32 +92,39 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Deactivate',
-                style: TextStyle(color: AppColors.error)),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Yes, Delete Permanently'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed == true) {
+      _deleteEmployee(userId);
+    }
+  }
 
+  Future<void> _deleteEmployee(String userId) async {
     final repo = UserRepository();
-    final result = await repo.deleteUser(widget.userId);
+    final result = await repo.deleteUser(userId);
     if (!mounted) return;
 
     switch (result) {
       case ApiSuccess():
         ref.invalidate(allUsersProvider);
+        ref.invalidate(allProjectsProvider);
+        ref.invalidate(myProjectsProvider);
+        ref.invalidate(todayLogProvider);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${employee.name} has been deactivated.'),
-            backgroundColor: AppColors.warning,
+            content: const Text('Employee permanently deleted.'),
+            backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
-        if (mounted) Navigator.of(context).pop();
+        if (mounted) Navigator.of(context).pop(true);
       case ApiError(exception: final ex):
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -202,10 +210,10 @@ class _EmployeeDetailScreenState extends ConsumerState<EmployeeDetailScreen> {
               ),
               IconButton(
                 padding: const EdgeInsets.all(12),
-                icon: const Icon(Icons.person_off_outlined),
+                icon: const Icon(Icons.delete_forever_outlined),
                 color: AppColors.error,
-                onPressed: () => _confirmDeactivate(employee),
-                tooltip: 'Deactivate',
+                onPressed: () => _showDeleteConfirmation(context, employee.id),
+                tooltip: 'Delete Employee',
               ),
               const SizedBox(width: 4),
             ],
@@ -463,6 +471,17 @@ class _TodayStatusCard extends ConsumerWidget {
     final todayLogAsync =
         ref.watch(logForDateProvider((uid: userId, date: todayDate)));
 
+    final log = todayLogAsync.valueOrNull;
+    double dayTotalMins = 0;
+    if (log != null && log.entries.isNotEmpty) {
+      for (final e in log.entries) {
+        if (e.timeSpent != null) {
+          dayTotalMins += parseTimeToMinutes(e.timeSpent!);
+        }
+      }
+    }
+    final dayTotalStr = formatMinutesToDisplay(dayTotalMins);
+
     return SurfaceCard(
       onTap: () => context.push('/log/$todayStr?viewUserId=$userId'),
       child: Column(
@@ -472,15 +491,33 @@ class _TodayStatusCard extends ConsumerWidget {
             children: [
               Icon(Icons.today_rounded,
                   color: AppColors.accent, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  "Today's Log",
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
+              const SizedBox(width: 8),
+              Text(
+                "Today's Log",
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
+              if (dayTotalStr.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Total: $dayTotalStr',
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+              const Spacer(),
               todayAsync.when(
                 loading: () => const SizedBox(
                   width: 16,
@@ -594,7 +631,7 @@ class _TodayStatusCard extends ConsumerWidget {
                                                   size: 10, color: AppColors.accent),
                                               const SizedBox(width: 3),
                                               Text(
-                                                entry.timeSpent!,
+                                                formatTotalTimeString(entry.timeSpent!),
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .labelSmall
@@ -612,9 +649,11 @@ class _TodayStatusCard extends ConsumerWidget {
                                   ),
 
                                 Text(
-                                  entry.description,
-                                  style:
-                                      Theme.of(context).textTheme.bodyMedium,
+                                  entry.description.withBulletSpacing,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(height: 1.5),
                                 ),
                               ],
                             ),

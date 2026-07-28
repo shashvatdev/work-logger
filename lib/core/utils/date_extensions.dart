@@ -34,3 +34,61 @@ extension DateTimeExtensions on DateTime {
     return 'Good evening';
   }
 }
+
+extension StringBulletExtensions on String {
+  /// Formats bullet points with clean spacing between items
+  String get withBulletSpacing {
+    if (!contains('\n')) return this;
+    return replaceAll(RegExp(r'\n+(?=[•\-])'), '\n\n');
+  }
+}
+
+/// Parses time strings like "2h 23m", "45m", "1.5h", "2h 23m, 1h 30m" to total minutes
+double parseTimeToMinutes(String raw) {
+  if (raw.trim().isEmpty) return 0;
+  double totalMins = 0;
+
+  final matches = RegExp(r'(\d+(?:\.\d+)?)\s*([hm])?|\b(\d+(?:\.\d+)?)\b', caseSensitive: false)
+      .allMatches(raw);
+
+  for (final m in matches) {
+    final strVal = m.group(1) ?? m.group(3);
+    if (strVal == null) continue;
+    final val = double.tryParse(strVal);
+    if (val == null) continue;
+
+    final unit = m.group(2)?.toLowerCase();
+    if (unit == 'h') {
+      totalMins += val * 60;
+    } else if (unit == 'm') {
+      totalMins += val;
+    } else {
+      totalMins += val * 60;
+    }
+  }
+
+  return totalMins;
+}
+
+/// Formats total minutes to clean string like "3h 53m", "45m", "2h"
+String formatMinutesToDisplay(double totalMins) {
+  if (totalMins <= 0) return '';
+  final totalMinsInt = totalMins.round();
+  final hours = totalMinsInt ~/ 60;
+  final mins = totalMinsInt % 60;
+
+  if (hours > 0 && mins > 0) {
+    return '${hours}h ${mins}m';
+  } else if (hours > 0) {
+    return '${hours}h';
+  } else {
+    return '${mins}m';
+  }
+}
+
+/// Parses and formats any raw time string to combined display string (e.g. "2h 23m, 1h 30m" -> "3h 53m")
+String formatTotalTimeString(String rawTime) {
+  final mins = parseTimeToMinutes(rawTime);
+  if (mins <= 0) return rawTime;
+  return formatMinutesToDisplay(mins);
+}

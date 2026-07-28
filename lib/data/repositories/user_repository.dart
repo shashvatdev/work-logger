@@ -15,9 +15,10 @@ class UserRepository {
       if (resp.statusCode == 200) {
         return ApiSuccess(UserModel.fromJson(resp.data));
       }
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to get profile',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to get profile',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -39,9 +40,10 @@ class UserRepository {
       if (resp.statusCode == 200) {
         return ApiSuccess(UserModel.fromJson(resp.data));
       }
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Update failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Update failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -64,9 +66,10 @@ class UserRepository {
             .toList();
         return ApiSuccess(list);
       }
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to load users',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to load users',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -90,9 +93,10 @@ class UserRepository {
       if (resp.statusCode == 201) {
         return ApiSuccess(UserModel.fromJson(resp.data));
       }
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed to create user',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to create user',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -104,9 +108,10 @@ class UserRepository {
     try {
       final resp = await _dio.get(ApiEndpoints.userById(id));
       if (resp.statusCode == 200) return ApiSuccess(UserModel.fromJson(resp.data));
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'User not found',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'User not found',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -127,9 +132,10 @@ class UserRepository {
         'isActive': isActive,
       });
       if (resp.statusCode == 200) return ApiSuccess(UserModel.fromJson(resp.data));
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Update failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Update failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -140,10 +146,11 @@ class UserRepository {
   Future<ApiResult<void>> deleteUser(String id) async {
     try {
       final resp = await _dio.post(ApiEndpoints.userDelete(id));
-      if (resp.statusCode == 204) return const ApiSuccess(null);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Delete failed',
+      if (resp.statusCode == 204 || resp.statusCode == 200) return const ApiSuccess(null);
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Delete failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -155,9 +162,10 @@ class UserRepository {
     try {
       final resp = await _dio.get(ApiEndpoints.userTodayStatus(id));
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -182,9 +190,10 @@ class UserRepository {
       final resp = await _dio.get(ApiEndpoints.userLogs(id),
           queryParameters: query);
       if (resp.statusCode == 200) return ApiSuccess(resp.data);
-      return ApiError(ApiException(
-        statusCode: resp.statusCode,
-        message: resp.data?['message'] ?? 'Failed',
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
