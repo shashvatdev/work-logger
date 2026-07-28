@@ -68,14 +68,14 @@ class ProjectRepository {
     }
   }
 
-  // ─── PUT /projects/{id} (Admin) ───────────────────────────────────────────
+  // ─── POST /projects/{id}/update (Admin) ───────────────────────────────────
   Future<ApiResult<ProjectModel>> updateProject(
     String id, {
     required String name,
     String? description,
   }) async {
     try {
-      final resp = await _dio.put(ApiEndpoints.projectById(id), data: {
+      final resp = await _dio.post(ApiEndpoints.projectUpdate(id), data: {
         'name': name,
         if (description != null) 'description': description,
       });
@@ -89,10 +89,10 @@ class ProjectRepository {
     }
   }
 
-  // ─── DELETE /projects/{id} (Admin) ────────────────────────────────────────
+  // ─── POST /projects/{id}/delete (Admin) ───────────────────────────────────
   Future<ApiResult<void>> deleteProject(String id) async {
     try {
-      final resp = await _dio.delete(ApiEndpoints.projectById(id));
+      final resp = await _dio.post(ApiEndpoints.projectDelete(id));
       if (resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
@@ -103,11 +103,11 @@ class ProjectRepository {
     }
   }
 
-  // ─── PATCH /projects/{id}/archive (Admin) ────────────────────────────────
+  // ─── POST /projects/{id}/archive (Admin) ──────────────────────────────────
   Future<ApiResult<ProjectModel>> archiveProject(
       String id, bool isArchived) async {
     try {
-      final resp = await _dio.patch(
+      final resp = await _dio.post(
         ApiEndpoints.projectArchive(id),
         data: {'isArchived': isArchived},
       );
@@ -158,12 +158,12 @@ class ProjectRepository {
     }
   }
 
-  // ─── DELETE /projects/{id}/members/{userId} (Admin) ──────────────────────
+  // ─── POST /projects/{id}/members/{userId}/remove (Admin) ──────────────────
   Future<ApiResult<void>> removeProjectMember(
       String projectId, String userId) async {
     try {
       final resp =
-          await _dio.delete(ApiEndpoints.projectMemberById(projectId, userId));
+          await _dio.post(ApiEndpoints.projectMemberRemove(projectId, userId));
       if (resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,

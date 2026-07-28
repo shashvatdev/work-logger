@@ -35,7 +35,7 @@ class UserRepository {
       if (currentPassword != null) body['currentPassword'] = currentPassword;
       if (newPassword != null) body['newPassword'] = newPassword;
 
-      final resp = await _dio.put(ApiEndpoints.usersMe, data: body);
+      final resp = await _dio.post(ApiEndpoints.usersMeUpdate, data: body);
       if (resp.statusCode == 200) {
         return ApiSuccess(UserModel.fromJson(resp.data));
       }
@@ -113,7 +113,7 @@ class UserRepository {
     }
   }
 
-  // ─── PUT /users/{id} (Admin) ─────────────────────────────────────────────
+  // ─── POST /users/{id}/update (Admin) ─────────────────────────────────────────
   Future<ApiResult<UserModel>> updateUser(
     String id, {
     required String name,
@@ -121,7 +121,7 @@ class UserRepository {
     required bool isActive,
   }) async {
     try {
-      final resp = await _dio.put(ApiEndpoints.userById(id), data: {
+      final resp = await _dio.post(ApiEndpoints.userUpdate(id), data: {
         'name': name,
         'role': role,
         'isActive': isActive,
@@ -136,10 +136,10 @@ class UserRepository {
     }
   }
 
-  // ─── DELETE /users/{id} (Admin) ──────────────────────────────────────────
+  // ─── POST /users/{id}/delete (Admin) ──────────────────────────────────────────
   Future<ApiResult<void>> deleteUser(String id) async {
     try {
-      final resp = await _dio.delete(ApiEndpoints.userById(id));
+      final resp = await _dio.post(ApiEndpoints.userDelete(id));
       if (resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,

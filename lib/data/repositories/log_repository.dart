@@ -93,15 +93,15 @@ class LogRepository {
     }
   }
 
-  // ─── PUT /logs/{id} ───────────────────────────────────────────────────────
+  // ─── POST /logs/{id}/update ───────────────────────────────────────────────
   Future<ApiResult<DailyLogModel>> updateLog({
     required String logId,
     required List<Map<String, dynamic>> entries,
     List<String> deletedEntryIds = const [],
   }) async {
     try {
-      final resp = await _dio.put(
-        ApiEndpoints.logById(logId),
+      final resp = await _dio.post(
+        ApiEndpoints.logUpdate(logId),
         data: {
           'entries': entries,
           'deletedEntryIds': deletedEntryIds,

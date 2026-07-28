@@ -38,10 +38,10 @@ class AttachmentRepository {
     }
   }
 
-  // ─── DELETE /attachments/{id} ─────────────────────────────────────────────
+  // ─── POST /attachments/{id}/delete ────────────────────────────────────────
   Future<ApiResult<void>> deleteAttachment(String id) async {
     try {
-      final resp = await _dio.delete(ApiEndpoints.attachmentById(id));
+      final resp = await _dio.post(ApiEndpoints.attachmentDelete(id));
       if (resp.statusCode == 204) return const ApiSuccess(null);
       return ApiError(ApiException(
         statusCode: resp.statusCode,
