@@ -6,14 +6,14 @@ import 'api_endpoints.dart';
 import 'api_client.dart';
 
 /// ─────────────────────────────────────────────────────────────────────────────
-/// WorkNote Logger Interceptor
+/// Track It Logger Interceptor
 ///
 /// Logs all HTTP requests and responses for debugging.
 /// Format is compatible with Dart's `dart:developer` log
 /// so it shows up cleanly in DevTools.
 /// ─────────────────────────────────────────────────────────────────────────────
-class WorkNoteLoggerInterceptor extends Interceptor {
-  static const _tag = 'WorkNote API';
+class TrackItLoggerInterceptor extends Interceptor {
+  static const _tag = 'Track It API';
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {

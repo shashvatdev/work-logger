@@ -11,8 +11,8 @@ class ApiClient {
 
   // ── Base URL ─────────────────────────────────────────────────────────────────
   // Change this to your deployed backend URL when going to production.
-  // static const String baseUrl = 'https://worktracker.addonshareware.com/api/v1';
-  static const String baseUrl = 'http://192.168.1.25:5289/api/v1';
+  static const String baseUrl = 'https://worktracker.addonshareware.com/api/v1';
+  // static const String baseUrl = 'http://192.168.1.25:5289/api/v1';
 
 
   static void Function()? onUnauthorized;
@@ -43,7 +43,7 @@ class ApiClient {
     // Order matters: Auth first (adds token), Logger second (logs full request)
     dio.interceptors.addAll([
       AuthInterceptor(dio),
-      WorkNoteLoggerInterceptor(),
+      TrackItLoggerInterceptor(),
     ]);
 
     return dio;

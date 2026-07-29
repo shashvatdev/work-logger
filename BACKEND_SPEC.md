@@ -1,4 +1,4 @@
-# WorkLog — Full Backend Specification (.NET)
+# Track It — Full Backend Specification (.NET)
 
 ## Tech Stack
 
@@ -20,9 +20,9 @@
 ## Project Structure
 
 ```
-WorkLog.sln
+TrackIt.sln
 │
-├── WorkLog.API/                    ← Web API layer (Controllers, Middleware, Startup)
+├── TrackIt.API/                    ← Web API layer (Controllers, Middleware, Startup)
 │   ├── Controllers/
 │   │   ├── AuthController.cs
 │   │   ├── UsersController.cs
@@ -35,7 +35,7 @@ WorkLog.sln
 │   ├── Program.cs
 │   └── appsettings.json
 │
-├── WorkLog.Application/            ← Business logic (Services, DTOs, Interfaces)
+├── TrackIt.Application/            ← Business logic (Services, DTOs, Interfaces)
 │   ├── Services/
 │   │   ├── AuthService.cs
 │   │   ├── UserService.cs
@@ -52,7 +52,7 @@ WorkLog.sln
 │   │   └── IRepository<T>.cs
 │   └── Validators/
 │
-├── WorkLog.Domain/                 ← Pure entities (no EF, no dependencies)
+├── TrackIt.Domain/                 ← Pure entities (no EF, no dependencies)
 │   ├── Entities/
 │   │   ├── User.cs
 │   │   ├── Project.cs
@@ -64,9 +64,9 @@ WorkLog.sln
 │       ├── UserRole.cs
 │       └── AttachmentType.cs
 │
-└── WorkLog.Infrastructure/         ← EF Core, Repos, Storage
+└── TrackIt.Infrastructure/         ← EF Core, Repos, Storage
     ├── Data/
-    │   ├── WorkLogDbContext.cs
+    │   ├── TrackItDbContext.cs
     │   └── Migrations/
     ├── Repositories/
     │   ├── UserRepository.cs
@@ -259,7 +259,7 @@ public enum UserRole { Admin, Employee }
 
 ## API Endpoints
 
-**Base URL**: `https://api.worklog.app/api/v1`
+**Base URL**: `https://api.trackit.app/api/v1`
 
 **Auth Header**: `Authorization: Bearer <jwt_token>`
 
@@ -277,7 +277,7 @@ POST   /auth/logout
 **Request**
 ```json
 {
-  "email": "rahul@worklog.app",
+  "email": "rahul@trackit.app",
   "password": "MyPassword123"
 }
 ```
@@ -290,7 +290,7 @@ POST   /auth/logout
   "user": {
     "id": "guid",
     "name": "Rahul Sharma",
-    "email": "rahul@worklog.app",
+    "email": "rahul@trackit.app",
     "role": "Employee"
   }
 }
@@ -336,7 +336,7 @@ GET    /users/{id}/logs          ← Admin: get all logs for a user
     {
       "id": "guid",
       "name": "Rahul Sharma",
-      "email": "rahul@worklog.app",
+      "email": "rahul@trackit.app",
       "role": "Employee",
       "isActive": true,
       "createdAt": "2026-01-10T00:00:00Z",
@@ -354,7 +354,7 @@ GET    /users/{id}/logs          ← Admin: get all logs for a user
 ```json
 {
   "name": "Karan Mehta",
-  "email": "karan@worklog.app",
+  "email": "karan@trackit.app",
   "password": "TempPass@123",
   "role": "Employee"
 }
@@ -364,7 +364,7 @@ GET    /users/{id}/logs          ← Admin: get all logs for a user
 {
   "id": "guid",
   "name": "Karan Mehta",
-  "email": "karan@worklog.app",
+  "email": "karan@trackit.app",
   "role": "Employee"
 }
 ```
@@ -376,7 +376,7 @@ GET    /users/{id}/logs          ← Admin: get all logs for a user
 {
   "id": "guid",
   "name": "Rahul Sharma",
-  "email": "rahul@worklog.app",
+  "email": "rahul@trackit.app",
   "role": "Employee",
   "createdAt": "2026-01-10T00:00:00Z"
 }
@@ -478,7 +478,7 @@ GET    /projects/{id}/timeline           ← Both roles: git-log style history
     {
       "userId": "guid",
       "name": "Rahul Sharma",
-      "email": "rahul@worklog.app",
+      "email": "rahul@trackit.app",
       "assignedAt": "2026-01-12T00:00:00Z"
     }
   ],
@@ -706,7 +706,7 @@ file: [binary]
   "fileName": "screenshot.png",
   "fileType": "image",
   "fileSizeBytes": 204800,
-  "storageUrl": "https://blob.storage.../worklog/guid/screenshot.png",
+  "storageUrl": "https://blob.storage.../trackit/guid/screenshot.png",
   "uploadedAt": "2026-07-20T09:45:00Z"
 }
 ```
@@ -821,7 +821,7 @@ All errors follow this shape:
 {
   "sub": "guid",
   "name": "Rahul Sharma",
-  "email": "rahul@worklog.app",
+  "email": "rahul@trackit.app",
   "role": "Employee",
   "iat": 1753024800,
   "exp": 1753028400
@@ -838,19 +838,19 @@ All errors follow this shape:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=.;Database=WorkLogDb;Trusted_Connection=True;"
+    "DefaultConnection": "Server=.;Database=TrackItDb;Trusted_Connection=True;"
   },
   "Jwt": {
     "Secret": "your-256-bit-secret-key-here",
-    "Issuer": "worklog.app",
-    "Audience": "worklog.app",
+    "Issuer": "trackit.app",
+    "Audience": "trackit.app",
     "AccessTokenExpiryMinutes": 60,
     "RefreshTokenExpiryDays": 30
   },
   "Storage": {
     "Provider": "Azure",
     "AzureConnectionString": "DefaultEndpointsProtocol=https;...",
-    "ContainerName": "worklog-attachments",
+    "ContainerName": "trackit-attachments",
     "MaxFileSizeMB": 50
   },
   "Logging": {
@@ -883,17 +883,17 @@ All errors follow this shape:
 ## Suggested NuGet Packages
 
 ```xml
-<!-- WorkLog.API -->
+<!-- TrackIt.API -->
 <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.*" />
 <PackageReference Include="Swashbuckle.AspNetCore" Version="6.*" />
 <PackageReference Include="Serilog.AspNetCore" Version="8.*" />
 
-<!-- WorkLog.Application -->
+<!-- TrackIt.Application -->
 <PackageReference Include="AutoMapper" Version="13.*" />
 <PackageReference Include="FluentValidation.AspNetCore" Version="11.*" />
 <PackageReference Include="BCrypt.Net-Next" Version="4.*" />
 
-<!-- WorkLog.Infrastructure -->
+<!-- TrackIt.Infrastructure -->
 <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.*" />
 <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.*" />
 <PackageReference Include="Azure.Storage.Blobs" Version="12.*" />
@@ -905,10 +905,10 @@ All errors follow this shape:
 
 ```bash
 # Add a migration
-dotnet ef migrations add InitialCreate --project WorkLog.Infrastructure --startup-project WorkLog.API
+dotnet ef migrations add InitialCreate --project TrackIt.Infrastructure --startup-project TrackIt.API
 
 # Update database
-dotnet ef database update --project WorkLog.Infrastructure --startup-project WorkLog.API
+dotnet ef database update --project TrackIt.Infrastructure --startup-project TrackIt.API
 ```
 
 ---

@@ -128,7 +128,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     index: 1,
                     baseDelay: const Duration(milliseconds: 120),
                     child: Text(
-                      'WorkNote',
+                      'Track It',
                       style: Theme.of(context).textTheme.displayLarge?.copyWith(
                             fontWeight: FontWeight.w700,
                             letterSpacing: -1.0,
@@ -140,7 +140,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     index: 2,
                     baseDelay: const Duration(milliseconds: 180),
                     child: Text(
-                      'Your daily work journal.',
+                      'Track your work. Every day.',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: AppColors.textSecondary(context),
                             fontStyle: FontStyle.italic,

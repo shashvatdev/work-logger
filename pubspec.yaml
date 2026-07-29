@@ -1,5 +1,5 @@
-name: worklog
-description: "WorkLog - Premium daily work journal"
+name: track_it
+description: "Track It - Premium daily work journal"
 publish_to: 'none'
 version: 1.0.0+1
 

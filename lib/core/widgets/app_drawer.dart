@@ -67,7 +67,7 @@ class AppDrawer extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.sm + 2),
                   Text(
-                    user?.name ?? 'WorkNote User',
+                    user?.name ?? 'Track It User',
                     style: Theme.of(context).textTheme.titleLarge,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -160,7 +160,7 @@ class AppDrawer extends ConsumerWidget {
                       context,
                       title: 'Privacy Policy',
                       content:
-                          'WorkNote strictly respects your privacy. We collect minimal employee work activity logs solely for project management and internal tracking within your organization.\n\n'
+                          'Track It strictly respects your privacy. We collect minimal employee work activity logs solely for project management and internal tracking within your organization.\n\n'
                           '• Personal Information: Name and business email address.\n'
                           '• Logs & Attachments: Work logs and files uploaded by you.\n'
                           '• Data Retention: Stored securely in cloud storage with full SSL encryption.\n'
@@ -176,7 +176,7 @@ class AppDrawer extends ConsumerWidget {
                       context,
                       title: 'Terms of Service',
                       content:
-                          'By accessing or using WorkNote, you agree to comply with your organization\'s code of conduct and reporting policies.\n\n'
+                          'By accessing or using Track It, you agree to comply with your organization\'s code of conduct and reporting policies.\n\n'
                           '1. Account Security: You are responsible for keeping your login credentials secure.\n'
                           '2. Content Compliance: Log entries and uploaded attachments must conform to workplace standards.\n'
                           '3. Access Termination: Organization admins reserve the right to deactivate employee access at any time.',
@@ -249,7 +249,7 @@ class AppDrawer extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'WorkNote',
+                        'Track It',
                         style: Theme.of(context)
                             .textTheme
                             .labelLarge
