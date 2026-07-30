@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/app_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -156,16 +157,26 @@ class AppDrawer extends ConsumerWidget {
                     icon: Icons.privacy_tip_outlined,
                     title: 'Privacy Policy',
                     subtitle: 'How we collect & process data',
-                    onTap: () => _showPolicyDialog(
-                      context,
-                      title: 'Privacy Policy',
-                      content:
-                          'Track It strictly respects your privacy. We collect minimal employee work activity logs solely for project management and internal tracking within your organization.\n\n'
-                          '• Personal Information: Name and business email address.\n'
-                          '• Logs & Attachments: Work logs and files uploaded by you.\n'
-                          '• Data Retention: Stored securely in cloud storage with full SSL encryption.\n'
-                          '• Third-Party Sharing: Your data is never sold or shared with external third parties.',
-                    ),
+                    onTap: () async {
+                      final uri = Uri.parse('https://addonshareware.com/trackit/privacy-policy/');
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else {
+                        if (context.mounted) {
+                          _showPolicyDialog(
+                            context,
+                            title: 'Privacy Policy',
+                            content:
+                                'Track It strictly respects your privacy. We collect minimal employee work activity logs solely for project management and internal tracking within your organization.\n\n'
+                                '• Personal Information: Name and business email address.\n'
+                                '• Logs & Attachments: Work logs and files uploaded by you.\n'
+                                '• Data Retention: Stored securely in cloud storage with full SSL encryption.\n'
+                                '• Third-Party Sharing: Your data is never sold or shared with external third parties.\n\n'
+                                'View online: https://addonshareware.com/trackit/privacy-policy/',
+                          );
+                        }
+                      }
+                    },
                   ),
 
                   _DrawerTile(
