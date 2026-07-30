@@ -1,4 +1,4 @@
-package com.worklog.worklog
+package com.addonshareware.trackit
 
 import io.flutter.embedding.android.FlutterActivity
 
