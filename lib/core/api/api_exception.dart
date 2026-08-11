@@ -66,15 +66,15 @@ class ApiException implements Exception {
   static String _fromType(DioExceptionType type) {
     switch (type) {
       case DioExceptionType.connectionTimeout:
-        return 'Connection timed out. Check your network.';
+        return 'Unable to connect to server. Please check your internet connection and try again.';
       case DioExceptionType.receiveTimeout:
-        return 'Server took too long to respond.';
+        return 'Server is taking too long to respond. Please try again.';
       case DioExceptionType.sendTimeout:
-        return 'Request timed out while sending.';
+        return 'Request timed out. Please check your connection and try again.';
       case DioExceptionType.connectionError:
-        return 'No internet connection.';
+        return 'No internet connection. Please check your connection and try again.';
       case DioExceptionType.badResponse:
-        return 'Unexpected server response.';
+        return 'Unexpected server response. Please try again.';
       default:
         return 'Something went wrong. Please try again.';
     }

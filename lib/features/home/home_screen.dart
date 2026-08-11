@@ -249,6 +249,7 @@ class _TopActions extends ConsumerWidget {
       children: [
         Builder(
           builder: (scaffoldContext) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () {
               Scaffold.of(scaffoldContext).openDrawer();
             },
@@ -332,6 +333,7 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),

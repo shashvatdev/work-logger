@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 export 'app_drawer.dart';
@@ -129,6 +130,7 @@ class PremiumButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
+  final String? loadingLabel;
   final IconData? icon;
   final Color? backgroundColor;
   final Color? textColor;
@@ -140,6 +142,7 @@ class PremiumButton extends StatefulWidget {
     required this.label,
     this.onPressed,
     this.loading = false,
+    this.loadingLabel,
     this.icon,
     this.backgroundColor,
     this.textColor,
@@ -200,6 +203,7 @@ class _PremiumButtonState extends State<PremiumButton>
     final fg = widget.textColor ?? Colors.white;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
@@ -224,16 +228,31 @@ class _PremiumButtonState extends State<PremiumButton>
                 : null,
           ),
           child: widget.loading
-              ? const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                      strokeCap: StrokeCap.round,
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                        strokeCap: StrokeCap.round,
+                      ),
                     ),
-                  ),
+                    if (widget.loadingLabel != null) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      Text(
+                        widget.loadingLabel!,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: fg,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              letterSpacing: -0.2,
+                            ),
+                      ),
+                    ],
+                  ],
                 )
               : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -305,6 +324,7 @@ class _SecondaryButtonState extends State<SecondaryButton>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
         _ctrl.reverse();
@@ -486,7 +506,17 @@ class BackChevron extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).maybePop(),
+      behavior: HitTestBehavior.opaque,
+      onTap: () async {
+        final popped = await Navigator.of(context).maybePop();
+        if (!popped && context.mounted) {
+          // Fallback: use GoRouter to go back in case there's no Navigator stack entry
+          try {
+            // ignore: use_build_context_synchronously
+            GoRouter.of(context).pop();
+          } catch (_) {}
+        }
+      },
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

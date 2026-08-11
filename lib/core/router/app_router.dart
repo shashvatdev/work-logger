@@ -70,6 +70,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/admin/employees',
                 builder: (_, __) => const AdminEmployeesScreen(),
+                routes: [
+                  // /admin/employees/add must come BEFORE /admin/employees/:uid
+                  GoRoute(
+                    path: 'add',
+                    builder: (_, __) => const AddEmployeeScreen(),
+                  ),
+                  GoRoute(
+                    path: ':uid',
+                    builder: (_, state) {
+                      final uid = state.pathParameters['uid']!;
+                      return EmployeeDetailScreen(userId: uid);
+                    },
+                    routes: [
+                      GoRoute(
+                        path: 'calendar',
+                        builder: (_, state) {
+                          final uid = state.pathParameters['uid']!;
+                          return AdminEmployeeCalendarScreen(userId: uid);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -78,44 +101,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/admin/projects',
                 builder: (_, __) => const AdminProjectListScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) {
+                      final id = state.pathParameters['id']!;
+                      return AdminProjectDetailScreen(projectId: id);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/search',
+                path: '/admin/search',
                 builder: (_, __) => const SearchScreen(),
               ),
             ],
           ),
         ],
-      ),
-      GoRoute(
-        path: '/admin/projects/:id',
-        builder: (_, state) {
-          final id = state.pathParameters['id']!;
-          return AdminProjectDetailScreen(projectId: id);
-        },
-      ),
-      // /admin/employees/add must come BEFORE /admin/employees/:uid
-      GoRoute(
-        path: '/admin/employees/add',
-        builder: (_, __) => const AddEmployeeScreen(),
-      ),
-      GoRoute(
-        path: '/admin/employees/:uid',
-        builder: (_, state) {
-          final uid = state.pathParameters['uid']!;
-          return EmployeeDetailScreen(userId: uid);
-        },
-      ),
-      GoRoute(
-        path: '/admin/employees/:uid/calendar',
-        builder: (_, state) {
-          final uid = state.pathParameters['uid']!;
-          return AdminEmployeeCalendarScreen(userId: uid);
-        },
       ),
     ],
   );

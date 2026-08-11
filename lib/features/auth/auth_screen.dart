@@ -9,6 +9,7 @@ import '../../core/widgets/widgets.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../core/api/api_exception.dart';
 import '../../data/models/models.dart';
+import '../../core/utils/network_checker.dart';
 import 'change_password_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -44,6 +45,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (email.isEmpty || password.isEmpty) {
       setState(() {
         _error = 'Please enter email and password.';
+        _loading = false;
+      });
+      return;
+    }
+
+    final hasInternet = await NetworkChecker.hasConnection();
+    if (!hasInternet) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'No internet connection. Please check your connection and try again.';
         _loading = false;
       });
       return;
@@ -181,9 +192,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           hintText: 'Password',
                           prefixIcon: Icon(Icons.lock_outline_rounded,
                               color: AppColors.textSecondary(context)),
-                          suffixIcon: GestureDetector(
-                            onTap: () => setState(() => _obscure = !_obscure),
-                            child: Icon(
+                          suffixIcon: IconButton(
+                            onPressed: () => setState(() => _obscure = !_obscure),
+                            icon: Icon(
                               _obscure
                                   ? Icons.visibility_off_outlined
                                   : Icons.visibility_outlined,
@@ -229,6 +240,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     child: PremiumButton(
                       label: 'Sign In',
                       loading: _loading,
+                      loadingLabel: 'Signing in...',
                       useGradient: true,
                       onPressed: _signIn,
                     ),

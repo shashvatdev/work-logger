@@ -494,6 +494,7 @@ class _DrawerTileState extends State<_DrawerTile>
     final iconColor = widget.iconColor ?? AppColors.accent;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
         _ctrl.reverse();

@@ -1464,6 +1464,7 @@ class _EntrySectionState extends State<_EntrySection> {
                           ],
                           if (widget.isEditable && widget.totalCount > 1)
                             GestureDetector(
+                              behavior: HitTestBehavior.opaque,
                               onTap: widget.onRemove,
                               child: Container(
                                 padding: const EdgeInsets.all(6),
@@ -1541,6 +1542,7 @@ class _EntrySectionState extends State<_EntrySection> {
                           if (widget.isEditable) ...[
                             const SizedBox(height: AppSpacing.sm),
                             GestureDetector(
+                              behavior: HitTestBehavior.opaque,
                               onTap: () {
                                 setState(() {
                                   widget.editor.tasks.add(_TaskItemEditor());
@@ -1706,6 +1708,7 @@ class _EntrySectionState extends State<_EntrySection> {
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () => _showTimePickerSheet(context, task),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -1758,6 +1761,7 @@ class _EntrySectionState extends State<_EntrySection> {
           if (widget.editor.tasks.length > 1) ...[
             const SizedBox(width: 4),
             GestureDetector(
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 setState(() {
                   task.dispose();
@@ -1766,7 +1770,7 @@ class _EntrySectionState extends State<_EntrySection> {
                 widget.onChanged();
               },
               child: Padding(
-                padding: const EdgeInsets.only(top: 6, left: 4, right: 4),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 child: Icon(
                   Icons.close_rounded,
                   size: 16,
@@ -2063,6 +2067,7 @@ class _EntrySectionState extends State<_EntrySection> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: onIncrement,
                 child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 2),
@@ -2104,9 +2109,10 @@ class _EntrySectionState extends State<_EntrySection> {
               ),
               const SizedBox(height: 2),
               GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: onDecrement,
                 child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 2),
+                  padding: EdgeInsets.symmetric(vertical: 6),
                   child: Icon(Icons.keyboard_arrow_down_rounded,
                       color: AppColors.accent, size: 22),
                 ),
@@ -2120,6 +2126,7 @@ class _EntrySectionState extends State<_EntrySection> {
 
   Widget _buildPresetChip(String label, VoidCallback onTap) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -2454,6 +2461,7 @@ class _PresetChipState extends State<_PresetChip>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
         _ctrl.reverse();
@@ -2610,6 +2618,7 @@ class _AttachmentItem extends StatelessWidget {
     }
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => onTap(attachment),
       child: Stack(
 
@@ -2621,6 +2630,7 @@ class _AttachmentItem extends StatelessWidget {
               top: -6,
               right: -6,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: onDelete,
                 child: Container(
                   padding: const EdgeInsets.all(4),
@@ -2808,6 +2818,7 @@ class _AddProjectButtonState extends State<_AddProjectButton>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
         _ctrl.reverse();
