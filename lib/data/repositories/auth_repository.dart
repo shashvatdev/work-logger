@@ -5,7 +5,7 @@ import '../../core/api/api_exception.dart';
 import '../../core/api/token_storage.dart';
 
 
-/// Auth repository — login, refresh, logout
+/// Auth repository — login, logout, password change
 class AuthRepository {
   final Dio _dio = ApiClient.instance;
 
@@ -24,7 +24,6 @@ class AuthRepository {
         final data = resp.data as Map<String, dynamic>;
         await TokenStorage.saveTokens(
           accessToken: data['accessToken'] as String,
-          refreshToken: data['refreshToken'] as String,
         );
         return ApiSuccess(data);
       }
@@ -42,11 +41,7 @@ class AuthRepository {
   /// POST /auth/logout
   Future<ApiResult<void>> logout() async {
     try {
-      final refreshToken = await TokenStorage.getRefreshToken();
-      await _dio.post(
-        ApiEndpoints.logout,
-        data: {'refreshToken': refreshToken},
-      );
+      await _dio.post(ApiEndpoints.logout);
       await TokenStorage.clearAll();
       ApiClient.reset();
       return const ApiSuccess(null);

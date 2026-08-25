@@ -9,24 +9,16 @@ class TokenStorage {
   );
 
   static const _keyAccess = 'access_token';
-  static const _keyRefresh = 'refresh_token';
   static const _keyThemeMode = 'theme_mode';
 
   static Future<void> saveTokens({
     required String accessToken,
-    required String refreshToken,
   }) async {
-    await Future.wait([
-      _storage.write(key: _keyAccess, value: accessToken),
-      _storage.write(key: _keyRefresh, value: refreshToken),
-    ]);
+    await _storage.write(key: _keyAccess, value: accessToken);
   }
 
   static Future<String?> getAccessToken() =>
       _storage.read(key: _keyAccess);
-
-  static Future<String?> getRefreshToken() =>
-      _storage.read(key: _keyRefresh);
 
   static Future<String?> getThemeMode() =>
       _storage.read(key: _keyThemeMode);
@@ -35,9 +27,6 @@ class TokenStorage {
       _storage.write(key: _keyThemeMode, value: modeName);
 
   static Future<void> clearAll() async {
-    await Future.wait([
-      _storage.delete(key: _keyAccess),
-      _storage.delete(key: _keyRefresh),
-    ]);
+    await _storage.delete(key: _keyAccess);
   }
 }

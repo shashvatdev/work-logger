@@ -106,8 +106,7 @@ class TrackItLoggerInterceptor extends Interceptor {
 /// Auth Interceptor
 ///
 /// 1. Attaches Bearer token to every request automatically.
-/// 2. On 401 → silently refreshes the access token and retries once.
-/// 3. On second 401 → clears tokens (user must re-login).
+/// 2. On 401 → clears tokens and triggers unauthorized handler.
 /// ─────────────────────────────────────────────────────────────────────────────
 class AuthInterceptor extends QueuedInterceptorsWrapper {
   final Dio _dio;
@@ -127,40 +126,10 @@ class AuthInterceptor extends QueuedInterceptorsWrapper {
   @override
   Future<void> onError(
       DioException err, ErrorInterceptorHandler handler) async {
-    // Only intercept 401 and skip if this is already a refresh call
-    if (err.response?.statusCode == 401 &&
-        !err.requestOptions.path.contains(ApiEndpoints.refresh)) {
-      try {
-        final refreshToken = await TokenStorage.getRefreshToken();
-        if (refreshToken == null) {
-          await TokenStorage.clearAll();
-          return handler.next(err);
-        }
-
-        // Attempt token refresh
-        final refreshResp = await _dio.post(
-          ApiEndpoints.refresh,
-          data: {'refreshToken': refreshToken},
-          options: Options(headers: {'Authorization': ''}),
-        );
-
-        final newAccess = refreshResp.data['accessToken'] as String;
-        final newRefresh = refreshResp.data['refreshToken'] as String;
-        await TokenStorage.saveTokens(
-            accessToken: newAccess, refreshToken: newRefresh);
-
-        // Retry original request with new token
-        final retryOptions = err.requestOptions;
-        retryOptions.headers['Authorization'] = 'Bearer $newAccess';
-        final retryResp = await _dio.fetch(retryOptions);
-        return handler.resolve(retryResp);
-      } catch (_) {
-        await TokenStorage.clearAll();
-        ApiClient.onUnauthorized?.call();
-        handler.next(err);
-      }
-    } else {
-      handler.next(err);
+    if (err.response?.statusCode == 401) {
+      await TokenStorage.clearAll();
+      ApiClient.onUnauthorized?.call();
     }
+    handler.next(err);
   }
 }

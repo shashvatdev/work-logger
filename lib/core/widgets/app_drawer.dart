@@ -204,7 +204,7 @@ class AppDrawer extends ConsumerWidget {
                       content:
                           'In accordance with Google Play Store & Apple App Store Guidelines:\n\n'
                           '• Data Encryption: All data in transit is encrypted using HTTPS/TLS 1.3.\n'
-                          '• Secure Token Storage: Access & Refresh JWT tokens are securely saved in device encrypted hardware storage.\n'
+                          '• Secure Token Storage: Access JWT token is securely saved in device encrypted hardware storage.\n'
                           '• Right to Erasure: Users can request complete account and data removal via the Delete Account option.',
                     ),
                   ),
