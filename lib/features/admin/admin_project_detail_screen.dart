@@ -17,6 +17,7 @@ class AdminProjectDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final projectsAsync = ref.watch(allProjectsProvider);
     final usersAsync = ref.watch(allUsersProvider);
+    final membersAsync = ref.watch(projectMembersProvider(projectId));
     final timelineAsync = ref.watch(projectTimelineProvider(projectId));
 
     return projectsAsync.when(
@@ -32,7 +33,9 @@ class AdminProjectDetailScreen extends ConsumerWidget {
         }
 
         final allUsers = usersAsync.valueOrNull ?? <UserModel>[];
-        final members = allUsers.where((u) => project.memberIds.contains(u.id)).toList();
+        final members = membersAsync.valueOrNull ?? <UserModel>[];
+        final currentUser = ref.watch(currentUserProvider);
+        final canManage = currentUser != null && currentUser.canManageProject(project);
 
         return Scaffold(
           backgroundColor: AppColors.background(context),
@@ -40,28 +43,47 @@ class AdminProjectDetailScreen extends ConsumerWidget {
             leading: const BackButton(),
             title: Text(project.name, style: Theme.of(context).textTheme.titleLarge),
             actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.md),
-                child: _ArchiveButton(project: project),
-              ),
+              if (currentUser?.isAdmin == true)
+                Padding(
+                  padding: const EdgeInsets.only(right: AppSpacing.md),
+                  child: _ArchiveButton(project: project),
+                ),
             ],
           ),
           body: SafeArea(
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
+                // ── Project Information & Tech Lead Card ─────────────────────
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
+                    child: _ProjectHeaderCard(
+                      project: project,
+                      allUsers: allUsers,
+                      isAdmin: currentUser?.isAdmin == true,
+                    ),
+                  ),
+                ),
+
                 // ── Members ────────────────────────────────────────────────────
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
                         AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xs),
-                    child: Text(
-                      'MEMBERS',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            fontSize: 11,
-                            letterSpacing: 0.8,
-                            color: AppColors.textSecondary(context),
-                          ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'MEMBERS (${members.length})',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                                color: AppColors.textSecondary(context),
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -70,26 +92,39 @@ class AdminProjectDetailScreen extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                     child: SurfaceCard(
                       padding: EdgeInsets.zero,
-                      child: Column(
-                        children: [
-                          for (int i = 0; i < members.length; i++) ...[
-                            _MemberRow(member: members[i], project: project),
-                            if (i < members.length - 1) const AppDivider(indent: 72),
-                          ],
-                        ],
-                      ),
+                      child: members.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.all(AppSpacing.md),
+                              child: Center(
+                                child: Text('No members assigned yet'),
+                              ),
+                            )
+                          : Column(
+                              children: [
+                                for (int i = 0; i < members.length; i++) ...[
+                                  _MemberRow(
+                                    member: members[i],
+                                    project: project,
+                                    canManage: canManage,
+                                  ),
+                                  if (i < members.length - 1)
+                                    const AppDivider(indent: 72),
+                                ],
+                              ],
+                            ),
                     ),
                   ),
                 ),
 
-                // ── Add member button ──────────────────────────────────────────
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(AppSpacing.md,
-                        AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
-                    child: _AddMemberButton(project: project, allUsers: allUsers),
+                // ── Add member button (Admin or Tech Lead of this project) ────
+                if (canManage)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.md,
+                          AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
+                      child: _AddMemberButton(project: project, allUsers: allUsers),
+                    ),
                   ),
-                ),
 
                 // ── Timeline ───────────────────────────────────────────────────
                 SliverToBoxAdapter(
@@ -173,39 +208,245 @@ class AdminProjectDetailScreen extends ConsumerWidget {
   }
 }
 
+class _ProjectHeaderCard extends ConsumerWidget {
+  final ProjectModel project;
+  final List<UserModel> allUsers;
+  final bool isAdmin;
+
+  const _ProjectHeaderCard({
+    required this.project,
+    required this.allUsers,
+    required this.isAdmin,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasTechLead = project.techLeads.isNotEmpty;
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (project.description != null && project.description!.isNotEmpty) ...[
+            Text(
+              project.description!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary(context),
+                  ),
+            ),
+            const SizedBox(height: 12),
+            const AppDivider(),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.stars_rounded, color: AppColors.warning, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'TECH LEAD',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: AppColors.textSecondary(context),
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                            fontSize: 10,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasTechLead
+                          ? (project.techLeads.map((e) => e.name).join(', '))
+                          : 'No Tech Lead Assigned',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: hasTechLead ? null : AppColors.textTertiary(context),
+                          ),
+                    ),
+                    if (hasTechLead)
+                      Text(
+                        project.techLeads.map((e) => e.email).where((e) => e != null && e.isNotEmpty).join(', '),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppColors.textSecondary(context),
+                            ),
+                      ),
+                  ],
+                ),
+              ),
+              if (isAdmin)
+                TextButton.icon(
+                  onPressed: () => _showAssignTechLeadSheet(context, ref),
+                  icon: Icon(
+                    hasTechLead ? Icons.swap_horiz_rounded : Icons.person_add_alt_1_rounded,
+                    size: 16,
+                    color: AppColors.accent,
+                  ),
+                  label: Text(
+                    hasTechLead ? 'Change' : 'Assign',
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+    void _showAssignTechLeadSheet(BuildContext context, WidgetRef ref) {
+    final candidates = allUsers.where((u) => !u.isAdmin).toList();
+    Set<String> selectedIds = project.techLeads.map((tl) => tl.id).toSet();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.elevated(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SheetHandle(
+                  title: 'Manage Tech Leads',
+                  subtitle: 'Select engineers to lead this project',
+                ),
+                const SizedBox(height: 12),
+                if (candidates.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(AppSpacing.xl),
+                    child: Center(child: Text('No eligible users available.')),
+                  )
+                else
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: candidates.length,
+                      separatorBuilder: (_, __) => const AppDivider(indent: 72),
+                      itemBuilder: (context, index) {
+                        final user = candidates[index];
+                        final isSelected = selectedIds.contains(user.id);
+
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                          leading: InitialsAvatar(name: user.name, radius: 18),
+                          title: Text(user.name, style: Theme.of(context).textTheme.bodyLarge),
+                          subtitle: Text(user.email, style: TextStyle(color: AppColors.textSecondary(context), fontSize: 12)),
+                          trailing: isSelected
+                              ? const Icon(Icons.check_box_rounded, color: AppColors.accent)
+                              : const Icon(Icons.check_box_outline_blank_rounded, color: Colors.grey),
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                selectedIds.remove(user.id);
+                              } else {
+                                selectedIds.add(user.id);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: PremiumButton(
+                    label: 'Save Tech Leads',
+                    onPressed: () async {
+                      final repo = ProjectRepository();
+                      await repo.assignTechLead(project.id, selectedIds.toList());
+                      ref.invalidate(allProjectsProvider);
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _MemberRow extends ConsumerWidget {
   final UserModel member;
   final ProjectModel project;
-  const _MemberRow({required this.member, required this.project});
+  final bool canManage;
+
+  const _MemberRow({
+    required this.member,
+    required this.project,
+    required this.canManage,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isAdmin = member.isAdmin;
+    final isTechLead = project.techLeads.any((tl) => tl.id == member.id);
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md, vertical: 6),
       leading: InitialsAvatar(name: member.name, radius: 20, showRing: true),
       title: Row(
         children: [
-          Text(member.name, style: Theme.of(context).textTheme.bodyLarge),
+          Expanded(
+            child: Text(
+              member.name,
+              style: Theme.of(context).textTheme.bodyLarge,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const SizedBox(width: AppSpacing.sm),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: isAdmin ? AppColors.accent.withOpacity(0.1) : AppColors.surface(context),
+              color: isTechLead
+                  ? AppColors.warning.withOpacity(0.12)
+                  : (isAdmin
+                      ? AppColors.accent.withOpacity(0.1)
+                      : AppColors.surface(context)),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
-              isAdmin ? 'Admin' : 'Employee',
+              isTechLead
+                  ? 'Tech Lead'
+                  : (isAdmin ? 'Admin' : 'Employee'),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isAdmin ? AppColors.accent : AppColors.textSecondary(context),
+                    color: isTechLead
+                        ? AppColors.warning
+                        : (isAdmin
+                            ? AppColors.accent
+                            : AppColors.textSecondary(context)),
                     fontSize: 10,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
           ),
         ],
       ),
-      trailing: !isAdmin
+      trailing: (canManage && !isAdmin)
           ? _RemoveButton(project: project, member: member)
           : null,
     );

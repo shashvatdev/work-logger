@@ -59,8 +59,8 @@ class AppDrawer extends ConsumerWidget {
                       ),
                       const Spacer(),
                       ChipLabel(
-                        label: isAdmin ? 'Admin' : 'Employee',
-                        color: isAdmin
+                        label: user?.isAdmin == true ? 'Admin' : 'Employee',
+                        color: user?.isAdmin == true
                             ? AppColors.accent
                             : AppColors.textSecondary(context),
                       ),
@@ -107,6 +107,50 @@ class AppDrawer extends ConsumerWidget {
                   ),
 
                   _SectionHeader(title: 'ACCOUNT'),
+
+                  // Profile
+                  _DrawerTile(
+                    icon: Icons.person_outline,
+                    title: 'Profile',
+                    subtitle: 'Manage your profile',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/profile');
+                    },
+                  ),
+
+                  // My Attendance
+                  _DrawerTile(
+                    icon: Icons.calendar_month_outlined,
+                    title: 'My Attendance',
+                    subtitle: 'View your punch history',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/attendance');
+                    },
+                  ),
+
+                  // Regularization Requests
+                  _DrawerTile(
+                    icon: Icons.pending_actions_outlined,
+                    title: 'My Requests',
+                    subtitle: 'Attendance regularization',
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.push('/regularization/my');
+                    },
+                  ),
+
+                  if (user?.isAdmin == true)
+                    _DrawerTile(
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: 'All Requests',
+                      subtitle: 'Approve/Reject requests',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/regularization/admin');
+                      },
+                    ),
 
                   // Change Password
                   _DrawerTile(

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 export 'app_drawer.dart';
+export 'app_logo.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 /// Premium surface card with press-lift animation and layered shadows.
@@ -108,13 +109,16 @@ class _SurfaceCardState extends State<SurfaceCard>
                     ),
                   ),
                 )
-              : Padding(
-                  padding: widget.padding ??
-                      const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.md,
-                      ),
-                  child: child,
+              : Material(
+                  color: Colors.transparent,
+                  child: Padding(
+                    padding: widget.padding ??
+                        const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.md,
+                        ),
+                    child: child,
+                  ),
                 ),
         ),
       ),
@@ -244,6 +248,8 @@ class _PremiumButtonState extends State<PremiumButton>
                       const SizedBox(width: AppSpacing.sm),
                       Text(
                         widget.loadingLabel!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               color: fg,
                               fontWeight: FontWeight.w700,
@@ -263,6 +269,8 @@ class _PremiumButtonState extends State<PremiumButton>
                     ],
                     Text(
                       widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: fg,
                             fontWeight: FontWeight.w700,
@@ -354,6 +362,8 @@ class _SecondaryButtonState extends State<SecondaryButton>
               ],
               Text(
                 widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: AppColors.accent,
                       fontWeight: FontWeight.w600,
@@ -485,6 +495,8 @@ class ChipLabel extends StatelessWidget {
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: c,
               fontWeight: FontWeight.w700,

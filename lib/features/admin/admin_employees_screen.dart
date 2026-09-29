@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
+import '../../core/providers/admin_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/user_repository.dart';
@@ -228,6 +229,9 @@ class _AdminEmployeesScreenState extends ConsumerState<AdminEmployeesScreen> {
                 ),
               ),
             ),
+
+            // ── Admin Stats Row ──────────────────────────────────────────────
+            SliverToBoxAdapter(child: _AdminStatsRow()),
 
             if (filtered.isEmpty && _state.isLoading)
               SliverToBoxAdapter(
@@ -728,6 +732,111 @@ class _RoleBadge extends StatelessWidget {
               fontSize: 10,
             ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+/// Admin Stats Row — 4 quick-stat chips shown above the employee list.
+// ─────────────────────────────────────────────────────────────────────────────
+class _AdminStatsRow extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(adminStatsProvider);
+
+    return statsAsync.when(
+      loading: () => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xs),
+        child: Row(
+          children: List.generate(
+            4,
+            (_) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: SkeletonLoader(
+                    width: double.infinity, height: 60, borderRadius: 12),
+              ),
+            ),
+          ),
+        ),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (stats) {
+        final tiles = [
+          (
+            label: 'Employees',
+            value: '${stats['totalEmployees'] ?? 0}',
+            icon: Icons.people_outline_rounded,
+            color: AppColors.accent
+          ),
+          (
+            label: 'Projects',
+            value: '${stats['activeProjects'] ?? 0}',
+            icon: Icons.folder_open_outlined,
+            color: const Color(0xFF5856D6)
+          ),
+          (
+            label: 'Punched In',
+            value: '${stats['punchedInToday'] ?? 0}',
+            icon: Icons.fingerprint_rounded,
+            color: AppColors.success
+          ),
+          (
+            label: 'Pending Logs',
+            value: '${stats['pendingLogs'] ?? 0}',
+            icon: Icons.pending_actions_rounded,
+            color: AppColors.warning
+          ),
+        ];
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+          child: Row(
+            children: tiles.map((t) {
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: t.color.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: t.color.withOpacity(0.18), width: 0.5),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(t.icon, color: t.color, size: 18),
+                        const SizedBox(height: 4),
+                        Text(
+                          t.value,
+                          style: TextStyle(
+                            color: t.color,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          t.label,
+                          style: TextStyle(
+                            color: t.color,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 }

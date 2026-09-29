@@ -7,6 +7,8 @@ import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/utils/date_extensions.dart';
 import '../../data/models/models.dart';
+import '../attendance/presentation/widgets/punch_card_widget.dart';
+
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -60,6 +62,8 @@ class HomeScreen extends ConsumerWidget {
 
     final hasTodayLog = todayLog != null && todayLog.entries.isNotEmpty;
 
+    final isProjectTechLead = myProjects.any((p) => p.techLeads.any((tl) => tl.id == user.id));
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
       drawer: const AppDrawer(),
@@ -103,14 +107,36 @@ class HomeScreen extends ConsumerWidget {
                               ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          today.displayDate,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                color: AppColors.textSecondary(context),
+                        Row(
+                          children: [
+                            Text(
+                              today.displayDate,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: AppColors.textSecondary(context),
+                                  ),
+                            ),
+                            if (isProjectTechLead) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(50),
+                                ),
+                                child: Text(
+                                  'Tech Lead',
+                                  style: TextStyle(
+                                    color: AppColors.warning,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -119,6 +145,53 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
+
+            // ── Attendance Punch Card ─────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    0, AppSpacing.sm, 0, AppSpacing.xs),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Attendance',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  color: AppColors.textSecondary(context),
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 13,
+                                  letterSpacing: 0.5,
+                                ),
+                          ),
+                          GestureDetector(
+                            onTap: () => context.push('/attendance'),
+                            child: Text(
+                              'View History',
+                              style: TextStyle(
+                                color: AppColors.accent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PunchCardWidget(),
+                  ],
+                ),
+              ),
+            ),
+
 
             // ── "Today's Log" status ─────────────────────────────────────────
             SliverToBoxAdapter(
@@ -193,8 +266,6 @@ class HomeScreen extends ConsumerWidget {
                       ),
               ),
             ),
-
-            const SliverFillRemaining(hasScrollBody: false),
           ],
         ),
       ),
@@ -224,6 +295,18 @@ class HomeScreen extends ConsumerWidget {
                     label: 'Calendar',
                     onTap: () => context.push('/calendar'),
                   ),
+                  if (user.isAdmin)
+                    _NavButton(
+                      icon: Icons.groups_rounded,
+                      label: 'Team Logs',
+                      onTap: () => context.push('/team-logs'),
+                    )
+                  else if (isProjectTechLead)
+                    _NavButton(
+                      icon: Icons.folder_open_outlined,
+                      label: 'Projects',
+                      onTap: () => context.push('/tech-lead/projects'),
+                    ),
                   _NavButton(
                     icon: Icons.search_rounded,
                     label: 'Search',
@@ -268,6 +351,8 @@ class _ProjectRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasLead = project.techLeads.isNotEmpty;
+
     return InkWell(
       onTap: onTap,
       child: IntrinsicHeight(
@@ -280,15 +365,48 @@ class _ProjectRow extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md, vertical: 16),
+                    horizontal: AppSpacing.md, vertical: 14),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      project.name,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            project.name,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                ),
                           ),
+                          if (hasLead) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Icon(Icons.stars_rounded, size: 12, color: AppColors.warning),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'Leads: ${project.techLeads.map((e) => e.name).join(', ')}',
+                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                          color: AppColors.warning,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 11,
+                                        ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.info_outline_rounded, size: 18, color: AppColors.accent),
+                      tooltip: 'Project details',
+                      onPressed: () => context.push('/projects/${project.id}'),
                     ),
                     Icon(
                       Icons.arrow_forward_ios_rounded,
@@ -349,6 +467,8 @@ class _NavButton extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: AppColors.accent,
                     fontSize: 11,

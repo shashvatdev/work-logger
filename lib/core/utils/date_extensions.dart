@@ -92,3 +92,15 @@ String formatTotalTimeString(String rawTime) {
   if (mins <= 0) return rawTime;
   return formatMinutesToDisplay(mins);
 }
+
+/// Parses backend time strings safely. 
+/// Assumes UTC if no timezone is provided (as many backends omit the 'Z').
+/// Always returns local time for UI display.
+DateTime? parseBackendTime(String? dateStr) {
+  if (dateStr == null || dateStr.trim().isEmpty) return null;
+  String str = dateStr.trim();
+  if (!str.endsWith('Z') && !str.contains(RegExp(r'[\+\-]\d{2}:?\d{2}$'))) {
+    str += 'Z';
+  }
+  return DateTime.tryParse(str)?.toLocal();
+}

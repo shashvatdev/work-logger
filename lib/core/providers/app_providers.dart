@@ -101,15 +101,25 @@ final authCheckProvider = FutureProvider<void>((ref) async {
   }
 });
 
-// ─── All Users (for Admin) ───────────────────────────────────────────────────
+// ─── All Users (for Admin & Member assignment) ───────────────────────────────
 final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {
   final user = ref.watch(currentUserProvider);
-  if (user == null || !user.isAdmin) return <UserModel>[];
+  if (user == null) return <UserModel>[];
   
   final repo = UserRepository();
   final result = await repo.getAllUsers();
   return switch (result) {
     ApiSuccess(data: final users) => users,
+    ApiError(exception: final ex) => throw ex,
+  };
+});
+
+// ─── Project Members Provider (Works for all roles) ───────────────────────────
+final projectMembersProvider = FutureProvider.family<List<UserModel>, String>((ref, projectId) async {
+  final repo = ProjectRepository();
+  final result = await repo.getProjectMembers(projectId);
+  return switch (result) {
+    ApiSuccess(data: final members) => members,
     ApiError(exception: final ex) => throw ex,
   };
 });
@@ -133,7 +143,7 @@ final myProjectsProvider = FutureProvider<List<ProjectModel>>((ref) async {
   
   final projects = await ref.watch(allProjectsProvider.future);
   if (user.isAdmin) return projects.where((p) => !p.archived).toList();
-  // The API already filters the project list to show only assigned projects for employees.
+  // The API already filters the project list to show only assigned / led projects for employees & Tech Leads.
   return projects.where((p) => !p.archived).toList();
 });
 
@@ -315,4 +325,132 @@ class EmployeeLogsNotifier extends StateNotifier<EmployeeLogsState> {
 
 final employeeLogsProvider = StateNotifierProvider.family<EmployeeLogsNotifier, EmployeeLogsState, String>(
   (ref, userId) => EmployeeLogsNotifier(userId, ref),
+);
+
+// ─── Team Work Logs State & Notifier (For Tech Lead & Admin) ─────────────────
+class TeamLogsState {
+  final List<Map<String, dynamic>> logs;
+  final int total;
+  final int page;
+  final bool isLoading;
+  final bool hasMore;
+  final String? error;
+  final String? from;
+  final String? to;
+  final String? selectedEmployeeId;
+
+  const TeamLogsState({
+    this.logs = const [],
+    this.total = 0,
+    this.page = 1,
+    this.isLoading = false,
+    this.hasMore = true,
+    this.error,
+    this.from,
+    this.to,
+    this.selectedEmployeeId,
+  });
+
+  TeamLogsState copyWith({
+    List<Map<String, dynamic>>? logs,
+    int? total,
+    int? page,
+    bool? isLoading,
+    bool? hasMore,
+    String? error,
+    String? from,
+    String? to,
+    String? selectedEmployeeId,
+  }) {
+    return TeamLogsState(
+      logs: logs ?? this.logs,
+      total: total ?? this.total,
+      page: page ?? this.page,
+      isLoading: isLoading ?? this.isLoading,
+      hasMore: hasMore ?? this.hasMore,
+      error: error,
+      from: from ?? this.from,
+      to: to ?? this.to,
+      selectedEmployeeId: selectedEmployeeId ?? this.selectedEmployeeId,
+    );
+  }
+}
+
+class TeamLogsNotifier extends StateNotifier<TeamLogsState> {
+  final Ref ref;
+  static const int _pageSize = 20;
+
+  TeamLogsNotifier(this.ref) : super(const TeamLogsState());
+
+  Future<void> load({
+    bool reset = false,
+    String? from,
+    String? to,
+    String? employeeId,
+  }) async {
+    if (state.isLoading) return;
+    if (!reset && !state.hasMore) return;
+
+    final nextPage = reset ? 1 : state.page;
+    final fromFilter = from ?? (reset ? null : state.from);
+    final toFilter = to ?? (reset ? null : state.to);
+    final empFilter = employeeId ?? (reset ? null : state.selectedEmployeeId);
+
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      logs: reset ? [] : state.logs,
+      page: nextPage,
+      hasMore: reset ? true : state.hasMore,
+      from: fromFilter,
+      to: toFilter,
+      selectedEmployeeId: empFilter,
+    );
+
+    try {
+      final logRepo = LogRepository();
+      // If a specific employee is chosen, we can query either getLogs or getUserLogs
+      final result = await logRepo.getLogs(
+        from: fromFilter,
+        to: toFilter,
+        page: nextPage,
+        pageSize: _pageSize,
+      );
+
+      switch (result) {
+        case ApiSuccess(data: final data):
+          final rawLogs = (data['logs'] as List? ?? []).cast<Map<String, dynamic>>();
+          final total = data['total'] as int? ?? rawLogs.length;
+          
+          // Filter in-memory if employee filter applied on top of getLogs
+          final filtered = empFilter != null && empFilter.isNotEmpty
+              ? rawLogs.where((l) => l['userId'] == empFilter).toList()
+              : rawLogs;
+
+          final allLogs = reset ? filtered : [...state.logs, ...filtered];
+          state = state.copyWith(
+            logs: allLogs,
+            total: total,
+            page: nextPage + 1,
+            isLoading: false,
+            hasMore: allLogs.length < total,
+            from: fromFilter,
+            to: toFilter,
+            selectedEmployeeId: empFilter,
+          );
+        case ApiError(exception: final ex):
+          state = state.copyWith(isLoading: false, error: ex.message);
+      }
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> applyFilters({String? from, String? to, String? employeeId}) async {
+    await load(reset: true, from: from, to: to, employeeId: employeeId);
+  }
+}
+
+final teamLogsProvider = StateNotifierProvider<TeamLogsNotifier, TeamLogsState>(
+  (ref) => TeamLogsNotifier(ref),
 );

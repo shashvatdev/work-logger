@@ -179,12 +179,12 @@ class _SearchResultCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dateDisplay = _formatDate(result.date);
     final currentUser = ref.watch(currentUserProvider);
-    final showEmployee = currentUser?.isAdmin ?? false;
+    final isSelf = currentUser != null && currentUser.id == result.userId;
+    final showEmployee = !isSelf && result.userName.isNotEmpty;
 
     return SurfaceCard(
       onTap: () {
-        final isSelf = currentUser != null && currentUser.id == result.userId;
-        final viewQuery = (!isSelf && showEmployee) ? '&viewUserId=${result.userId}' : '';
+        final viewQuery = (!isSelf && (currentUser?.isAdmin ?? false)) ? '&viewUserId=${result.userId}' : '';
         final projQuery = result.projectId.isNotEmpty ? '?projectId=${result.projectId}$viewQuery' : (viewQuery.isNotEmpty ? '?${viewQuery.substring(1)}' : '');
         context.push('/log/${result.date}$projQuery');
       },
@@ -194,8 +194,7 @@ class _SearchResultCard extends ConsumerWidget {
           Row(
             children: [
               ChipLabel(label: result.projectName, color: AppColors.projectColor(result.projectId)),
-              if ((result.timeSpent ?? result.hoursSpent ?? result.duration) != null &&
-                  (result.timeSpent ?? result.hoursSpent ?? result.duration).toString().isNotEmpty) ...[
+              if (result.timeSpent != null && result.timeSpent!.isNotEmpty) ...[
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -214,7 +213,7 @@ class _SearchResultCard extends ConsumerWidget {
                           size: 10, color: AppColors.accent),
                       const SizedBox(width: 3),
                       Text(
-                        (result.timeSpent ?? result.hoursSpent ?? result.duration).toString(),
+                        result.timeSpent!,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               color: AppColors.accent,
                               fontWeight: FontWeight.w700,
@@ -236,23 +235,25 @@ class _SearchResultCard extends ConsumerWidget {
           ),
 
           const SizedBox(height: AppSpacing.sm),
-          if (showEmployee) ...[
-            Text(
-              result.userName,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w600,
-                  ),
+          if (showEmployee && result.userName.isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Icons.person_outline_rounded, size: 14, color: AppColors.accent),
+                const SizedBox(width: 4),
+                Text(
+                  result.userName,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
           ],
-          Text(
-            result.excerpt,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  height: 1.5,
-                ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
+          _HighlightedExcerpt(
+            text: result.excerpt,
+            query: ref.watch(searchQueryProvider),
           ),
         ],
       ),
@@ -292,6 +293,64 @@ class _NoResultsState extends StatelessWidget {
         title: 'No results',
         subtitle: 'Try different keywords or date range.',
       ),
+    );
+  }
+}
+
+class _HighlightedExcerpt extends StatelessWidget {
+  final String text;
+  final String query;
+
+  const _HighlightedExcerpt({
+    required this.text,
+    required this.query,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cleanQuery = query.trim().toLowerCase();
+    final defaultStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          height: 1.5,
+        );
+    final highlightStyle = defaultStyle?.copyWith(
+      backgroundColor: AppColors.accent.withOpacity(0.2),
+      color: AppColors.accent,
+      fontWeight: FontWeight.w600,
+    );
+
+    if (cleanQuery.isEmpty || !text.toLowerCase().contains(cleanQuery)) {
+      return Text(
+        text,
+        style: defaultStyle,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    final spans = <TextSpan>[];
+    final lowerText = text.toLowerCase();
+    int start = 0;
+
+    while (start < text.length) {
+      final matchIndex = lowerText.indexOf(cleanQuery, start);
+      if (matchIndex == -1) {
+        spans.add(TextSpan(text: text.substring(start), style: defaultStyle));
+        break;
+      }
+
+      if (matchIndex > start) {
+        spans.add(TextSpan(text: text.substring(start, matchIndex), style: defaultStyle));
+      }
+
+      final matchEnd = matchIndex + cleanQuery.length;
+      spans.add(TextSpan(text: text.substring(matchIndex, matchEnd), style: highlightStyle));
+      start = matchEnd;
+    }
+
+    return RichText(
+      text: TextSpan(children: spans),
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

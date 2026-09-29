@@ -1,3 +1,5 @@
+import '../../core/utils/date_extensions.dart';
+
 enum UserRole { admin, employee }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11,6 +13,8 @@ class UserModel {
   final bool isActive;
   final bool hasLoggedToday;
   final DateTime? createdAt;
+  final String? assignedOfficeId;
+  final String? assignedOfficeName;
 
   const UserModel({
     required this.id,
@@ -20,23 +24,39 @@ class UserModel {
     this.isActive = true,
     this.hasLoggedToday = false,
     this.createdAt,
+    this.assignedOfficeId,
+    this.assignedOfficeName,
   });
 
   bool get isAdmin => role == UserRole.admin;
+  bool get isEmployee => role == UserRole.employee;
+
+  bool canManageProject(ProjectModel project) {
+    return isAdmin || project.techLeads.any((tl) => tl.id == id);
+  }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    final roleStr = (json['role'] as String? ?? '').toLowerCase().replaceAll(' ', '').replaceAll('_', '');
+    
+    // Sometimes assignedOffice is passed as an object
+    String? officeId = json['assignedOfficeId'] as String?;
+    String? officeName = json['assignedOfficeName'] as String?;
+    
+    if (json['assignedOffice'] is Map) {
+      officeId ??= json['assignedOffice']['id'] as String?;
+      officeName ??= json['assignedOffice']['name'] as String?;
+    }
+    
     return UserModel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      email: json['email'] as String,
-      role: (json['role'] as String).toLowerCase() == 'admin'
-          ? UserRole.admin
-          : UserRole.employee,
+      id: (json['id'] ?? json['userId']) as String,
+      name: (json['name'] ?? 'Unknown User') as String,
+      email: (json['email'] ?? '') as String,
+      role: roleStr == 'admin' ? UserRole.admin : UserRole.employee,
       isActive: json['isActive'] as bool? ?? true,
       hasLoggedToday: json['hasLoggedToday'] as bool? ?? false,
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'] as String)
-          : null,
+      createdAt: parseBackendTime(json['createdAt'] as String?),
+      assignedOfficeId: officeId,
+      assignedOfficeName: officeName,
     );
   }
 
@@ -47,6 +67,24 @@ class UserModel {
         'role': isAdmin ? 'Admin' : 'Employee',
         'isActive': isActive,
       };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+class TechLeadModel {
+  final String id;
+  final String name;
+  final String? email;
+
+  const TechLeadModel({required this.id, required this.name, this.email});
+
+  factory TechLeadModel.fromJson(Map<String, dynamic> json) {
+    return TechLeadModel(
+      id: (json['id'] ?? json['userId'] ?? '') as String,
+      name: (json['name'] ?? 'Unknown') as String,
+      email: json['email'] as String?,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,6 +99,7 @@ class ProjectModel {
   final List<String> memberIds;
   final int memberCount;
   final String? createdByName;
+  final List<TechLeadModel> techLeads;
 
   const ProjectModel({
     required this.id,
@@ -71,6 +110,7 @@ class ProjectModel {
     this.memberIds = const [],
     this.memberCount = 0,
     this.createdByName,
+    this.techLeads = const [],
   });
 
   factory ProjectModel.fromJson(Map<String, dynamic> json) {
@@ -87,16 +127,35 @@ class ProjectModel {
             .toList() ??
         [];
 
+    final techLeadsList = json['techLeads'] as List?;
+    var parsedTechLeads = techLeadsList != null 
+        ? techLeadsList.map((m) => TechLeadModel.fromJson(m as Map<String, dynamic>)).toList() 
+        : <TechLeadModel>[];
+
+    // Fallback for transition
+    if (parsedTechLeads.isEmpty) {
+      final techLeadObj = json['techLead'] as Map<String, dynamic>?;
+      final tId = json['techLeadId'] as String? ?? techLeadObj?['id'] as String?;
+      if (tId != null) {
+        parsedTechLeads.add(TechLeadModel(
+          id: tId,
+          name: (json['techLeadName'] as String? ?? techLeadObj?['name'] as String?) ?? 'Unknown',
+          email: json['techLeadEmail'] as String? ?? techLeadObj?['email'] as String?,
+        ));
+      }
+    }
+
     return ProjectModel(
       id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String?,
       archived: json['isArchived'] as bool? ?? false,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+      createdAt: parseBackendTime(json['createdAt'] as String?) ??
           DateTime.now(),
       memberIds: memberIds,
       memberCount: json['memberCount'] as int? ?? memberIds.length,
       createdByName: json['createdByName'] as String?,
+      techLeads: parsedTechLeads,
     );
   }
 
@@ -106,6 +165,7 @@ class ProjectModel {
     bool? archived,
     List<String>? memberIds,
     int? memberCount,
+    List<TechLeadModel>? techLeads,
   }) {
     return ProjectModel(
       id: id,
@@ -116,6 +176,7 @@ class ProjectModel {
       memberIds: memberIds ?? this.memberIds,
       memberCount: memberCount ?? this.memberCount,
       createdByName: createdByName,
+      techLeads: techLeads ?? this.techLeads,
     );
   }
 }
@@ -126,6 +187,8 @@ class ProjectModel {
 class DailyLogModel {
   final String id;
   final String userId;
+  final String? userName;
+  final String? userEmail;
   final String date; // yyyy-MM-dd (from logDate field)
   final List<LogEntryModel> entries;
   final int entryCount;
@@ -135,6 +198,8 @@ class DailyLogModel {
   const DailyLogModel({
     required this.id,
     required this.userId,
+    this.userName,
+    this.userEmail,
     required this.date,
     required this.entries,
     this.entryCount = 0,
@@ -147,27 +212,34 @@ class DailyLogModel {
     return DailyLogModel(
       id: json['id'] as String? ?? '',
       userId: json['userId'] as String? ?? '',
+      userName: json['userName'] as String? ?? json['user']?['name'] as String?,
+      userEmail: json['userEmail'] as String? ?? json['user']?['email'] as String?,
       date: json['logDate'] as String? ?? json['date'] as String? ?? '',
       entries:
           entriesList.map((e) => LogEntryModel.fromJson(e)).toList(),
       entryCount: json['entryCount'] as int? ?? entriesList.length,
       updatedAt: json['updatedAt'] != null
-          ? DateTime.tryParse(json['updatedAt'] as String)
+          ? parseBackendTime(json['updatedAt'] as String?)
           : null,
       createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'] as String)
+          ? parseBackendTime(json['createdAt'] as String?)
           : null,
     );
   }
 
   DailyLogModel copyWith({
+    String? userId,
+    String? userName,
+    String? userEmail,
     List<LogEntryModel>? entries,
     int? entryCount,
     DateTime? updatedAt,
   }) {
     return DailyLogModel(
       id: id,
-      userId: userId,
+      userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      userEmail: userEmail ?? this.userEmail,
       date: date,
       entries: entries ?? this.entries,
       entryCount: entryCount ?? this.entryCount,
@@ -277,7 +349,7 @@ class AttachmentModel {
       url: json['storageUrl'] as String?,
       fileSizeBytes: json['fileSizeBytes'] as int?,
       uploadedAt: json['uploadedAt'] != null
-          ? DateTime.tryParse(json['uploadedAt'] as String)
+          ? parseBackendTime(json['uploadedAt'] as String?)
           : null,
     );
   }
@@ -312,6 +384,7 @@ class SearchResult {
   final String userName;
   final String logId;
   final String logEntryId;
+  final String? timeSpent;
 
   const SearchResult({
     required this.date,
@@ -322,6 +395,7 @@ class SearchResult {
     required this.userName,
     required this.logId,
     required this.logEntryId,
+    this.timeSpent,
   });
 
   factory SearchResult.fromJson(Map<String, dynamic> json) {
@@ -334,6 +408,7 @@ class SearchResult {
       userName: json['userName'] as String,
       logId: json['logEntryId'] as String,
       logEntryId: json['logEntryId'] as String,
+      timeSpent: json['timeSpent']?.toString(),
     );
   }
 }

@@ -7,9 +7,9 @@ import 'core/providers/app_providers.dart';
 import 'core/api/api_client.dart';
 
 void main() {
+  // Preserve the native splash — we'll remove it ourselves once auth is ready
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-  FlutterNativeSplash.remove();
   runApp(const ProviderScope(child: TrackItApp()));
 }
 
@@ -21,6 +21,8 @@ class TrackItApp extends ConsumerStatefulWidget {
 }
 
 class _TrackItAppState extends ConsumerState<TrackItApp> {
+  bool _splashRemoved = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -39,9 +41,18 @@ class _TrackItAppState extends ConsumerState<TrackItApp> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(authCheckProvider);
+    final authAsync = ref.watch(authCheckProvider);
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(appRouterProvider);
+
+    // Remove the native splash exactly once — as soon as auth check finishes
+    if (!authAsync.isLoading && !_splashRemoved) {
+      _splashRemoved = true;
+      // Post-frame so the correct screen is already built before splash disappears
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        FlutterNativeSplash.remove();
+      });
+    }
 
     return MaterialApp.router(
       title: 'Track It',

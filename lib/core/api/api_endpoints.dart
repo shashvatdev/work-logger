@@ -30,6 +30,7 @@ class ApiEndpoints {
   static String projectMemberRemove(String id, String uid) =>
       '/projects/$id/members/$uid/remove';
   static String projectTimeline(String id) => '/projects/$id/timeline';
+  static String projectTechLead(String id) => '/projects/$id/tech-lead';
 
   // ── LOGS ─────────────────────────────────────────────────────────────────────
   static const String logs = '/logs';

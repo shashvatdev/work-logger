@@ -202,11 +202,39 @@ class _ProjectRow extends StatelessWidget {
                 color: archived ? AppColors.textSecondary(context) : null,
               ),
         ),
-        subtitle: Text(
-          '${project.memberCount} members',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontSize: 12,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 2),
+            Text(
+              '${project.memberCount} members',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontSize: 12,
+                    color: AppColors.textSecondary(context),
+                  ),
+            ),
+            if (project.techLeads.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.stars_rounded, size: 13, color: AppColors.warning),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Leads: ${project.techLeads.map((e) => e.name).join(', ')}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: AppColors.warning,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
+            ],
+          ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

@@ -82,14 +82,18 @@ class UserRepository {
     required String email,
     required String password,
     required String role,
+    String? assignedOfficeId,
   }) async {
     try {
-      final resp = await _dio.post(ApiEndpoints.users, data: {
+      final body = <String, dynamic>{
         'name': name,
         'email': email,
         'password': password,
         'role': role,
-      });
+        if (assignedOfficeId != null && assignedOfficeId.isNotEmpty)
+          'assignedOfficeId': assignedOfficeId,
+      };
+      final resp = await _dio.post(ApiEndpoints.users, data: body);
       if (resp.statusCode == 201) {
         return ApiSuccess(UserModel.fromJson(resp.data));
       }
@@ -124,13 +128,20 @@ class UserRepository {
     required String name,
     required String role,
     required bool isActive,
+    String? assignedOfficeId,
   }) async {
     try {
-      final resp = await _dio.post(ApiEndpoints.userUpdate(id), data: {
+      final data = {
         'name': name,
         'role': role,
         'isActive': isActive,
-      });
+      };
+      
+      if (assignedOfficeId != null && assignedOfficeId.isNotEmpty) {
+        data['assignedOfficeId'] = assignedOfficeId;
+      }
+      
+      final resp = await _dio.post(ApiEndpoints.userUpdate(id), data: data);
       if (resp.statusCode == 200) return ApiSuccess(UserModel.fromJson(resp.data));
       return ApiError(ApiException.fromResponse(
         resp.statusCode,

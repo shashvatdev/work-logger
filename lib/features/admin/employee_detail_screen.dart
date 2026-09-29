@@ -10,6 +10,8 @@ import '../../core/api/api_exception.dart';
 import '../../core/utils/date_extensions.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/user_repository.dart';
+import '../../core/providers/admin_providers.dart';
+import '../../data/models/office_model.dart';
 
 class EmployeeDetailScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -423,8 +425,10 @@ class _ProfileCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               ChipLabel(
-                label: isAdmin ? 'Admin' : 'Employee',
-                color: isAdmin ? AppColors.accent : AppColors.textSecondary(context),
+                label: employee.role == UserRole.admin ? 'Admin' : 'Employee',
+                color: employee.role == UserRole.admin
+                    ? AppColors.accent
+                    : AppColors.textSecondary(context),
               ),
               const SizedBox(width: 8),
               ChipLabel(
@@ -916,6 +920,7 @@ class _EditEmployeeSheetState extends ConsumerState<_EditEmployeeSheet> {
   late final TextEditingController _nameCtrl;
   late String _selectedRole;
   late bool _isActive;
+  String? _selectedOfficeId;
   bool _loading = false;
 
   @override
@@ -925,6 +930,7 @@ class _EditEmployeeSheetState extends ConsumerState<_EditEmployeeSheet> {
     _selectedRole =
         widget.employee.role == UserRole.admin ? 'Admin' : 'Employee';
     _isActive = widget.employee.isActive;
+    _selectedOfficeId = widget.employee.assignedOfficeId;
   }
 
   @override
@@ -948,6 +954,7 @@ class _EditEmployeeSheetState extends ConsumerState<_EditEmployeeSheet> {
       name: _nameCtrl.text.trim(),
       role: _selectedRole,
       isActive: _isActive,
+      assignedOfficeId: _selectedOfficeId,
     );
 
     if (!mounted) return;
@@ -1047,6 +1054,52 @@ class _EditEmployeeSheetState extends ConsumerState<_EditEmployeeSheet> {
               onChanged: (v) {
                 if (v != null) setState(() => _selectedRole = v);
               },
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Assigned Office Dropdown
+          ref.watch(officesProvider).when(
+            data: (offices) {
+              // Ensure selected office still exists, else set to null
+              if (_selectedOfficeId != null && !offices.any((o) => o.id == _selectedOfficeId)) {
+                _selectedOfficeId = null;
+              }
+              return SurfaceCard(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+                child: DropdownButtonFormField<String?>(
+                  value: _selectedOfficeId,
+                  dropdownColor: AppColors.elevated(context),
+                  decoration: const InputDecoration(
+                    labelText: 'Assigned Office (Optional)',
+                    border: InputBorder.none,
+                  ),
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textSecondary(context)),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('None')),
+                    ...offices.where((o) => o.isActive).map((o) => DropdownMenuItem(
+                      value: o.id,
+                      child: Text(o.name),
+                    )),
+                  ],
+                  onChanged: (v) => setState(() => _selectedOfficeId = v),
+                ),
+              );
+            },
+            loading: () => const SurfaceCard(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 16),
+              child: Row(
+                children: [
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 12),
+                  Text('Loading offices...'),
+                ],
+              ),
+            ),
+            error: (_, __) => const SurfaceCard(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 16),
+              child: Text('Failed to load offices'),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),

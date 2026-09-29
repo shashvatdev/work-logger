@@ -72,6 +72,8 @@
 		<string>Track It needs camera access to capture task completion proof photos.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Track It needs photo library access to upload attachments for work logs.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Track It needs location access to verify office geofence for punch-in and punch-out.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 	</dict>

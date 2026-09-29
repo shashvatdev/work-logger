@@ -1,11 +1,34 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_exception.dart';
+import '../../core/providers/app_providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/providers/app_providers.dart';
 import '../../core/widgets/widgets.dart';
-import '../../core/api/api_exception.dart';
 import '../../data/repositories/user_repository.dart';
+import '../attendance/data/models/assigned_office.dart';
+
+// ─── Provider: load all geofence offices ─────────────────────────────────────
+final _officesProvider = FutureProvider<List<AssignedOffice>>((ref) async {
+  try {
+    final resp = await ApiClient.instance.get('/geofence');
+    if (resp.statusCode == 200) {
+      final data = resp.data;
+      List rawList = [];
+      if (data is List) rawList = data;
+      else if (data is Map) rawList = data['zones'] ?? data['offices'] ?? data['data'] ?? [];
+      
+      return rawList
+          .map((o) => AssignedOffice.fromJson(o as Map<String, dynamic>))
+          .toList();
+    }
+    return <AssignedOffice>[];
+  } on DioException {
+    return <AssignedOffice>[];
+  }
+});
 
 class AddEmployeeScreen extends ConsumerStatefulWidget {
   const AddEmployeeScreen({super.key});
@@ -23,6 +46,9 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
   String _selectedRole = 'Employee';
   bool _obscurePassword = true;
   bool _loading = false;
+
+  /// null = "None" (no office assigned)
+  String? _selectedOfficeId;
 
   @override
   void dispose() {
@@ -42,6 +68,7 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
       email: _emailCtrl.text.trim(),
       password: _passwordCtrl.text,
       role: _selectedRole,
+      assignedOfficeId: _selectedOfficeId,
     );
 
     if (!mounted) return;
@@ -82,6 +109,8 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final officesAsync = ref.watch(_officesProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
@@ -309,6 +338,128 @@ class _AddEmployeeScreenState extends ConsumerState<AddEmployeeScreen> {
                 ],
               ),
 
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Assigned Office Label ────────────────────────────────────
+              Text(
+                'ASSIGNED OFFICE',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      letterSpacing: 1.2,
+                      color: AppColors.textSecondary(context),
+                    ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+
+              // ── Office Dropdown Card ─────────────────────────────────────
+              SurfaceCard(
+                padding: EdgeInsets.zero,
+                child: officesAsync.when(
+                  loading: () => Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: 14),
+                    child: Row(
+                      children: [
+                        Icon(Icons.business_outlined,
+                            size: 20,
+                            color: AppColors.textSecondary(context)),
+                        const SizedBox(width: AppSpacing.sm),
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'Loading offices…',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  color: AppColors.textSecondary(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  error: (_, __) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md, vertical: 14),
+                    child: Row(
+                      children: [
+                        Icon(Icons.business_outlined,
+                            size: 20,
+                            color: AppColors.textSecondary(context)),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'Could not load offices',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: AppColors.error),
+                        ),
+                      ],
+                    ),
+                  ),
+                  data: (offices) {
+                    // Build items: "None" sentinel + all active offices
+                    final activeOffices =
+                        offices.where((o) => o.isActive).toList();
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md, vertical: 2),
+                      child: DropdownButtonFormField<String?>(
+                        value: _selectedOfficeId,
+                        isExpanded: true,
+                        icon: Icon(Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.textSecondary(context), size: 22),
+                        dropdownColor: AppColors.elevated(context),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          prefixIcon: Icon(
+                            Icons.business_outlined,
+                            color: AppColors.textSecondary(context),
+                            size: 20,
+                          ),
+                          labelText: 'Assigned Office (Optional)',
+                          labelStyle: TextStyle(
+                              color: AppColors.textSecondary(context)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 0, vertical: 14),
+                        ),
+                        items: [
+                          DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text(
+                              'None',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                      color: AppColors.textSecondary(context)),
+                            ),
+                          ),
+                          ...activeOffices.map(
+                            (office) => DropdownMenuItem<String?>(
+                              value: office.id,
+                              child: Text(
+                                office.name,
+                                overflow: TextOverflow.ellipsis,
+                                style:
+                                    Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _selectedOfficeId = value),
+                      ),
+                    );
+                  },
+                ),
+              ),
 
               const SizedBox(height: AppSpacing.xl),
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/app_drawer.dart';
 
 class AdminShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -11,6 +12,7 @@ class AdminShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background(context),
+      drawer: const AppDrawer(),
       // IndexedStack is managed internally by StatefulShellRoute —
       // each branch keeps its own Navigator alive.
       body: navigationShell,
@@ -39,6 +41,8 @@ class _AdminBottomBar extends StatelessWidget {
     const items = [
       _BarItem(icon: Icons.people_outline_rounded, label: 'Team'),
       _BarItem(icon: Icons.folder_open_outlined, label: 'Projects'),
+      _BarItem(icon: Icons.fingerprint_rounded, label: 'Attendance'),
+      _BarItem(icon: Icons.location_city_rounded, label: 'Offices'),
       _BarItem(icon: Icons.search_rounded, label: 'Search'),
     ];
 

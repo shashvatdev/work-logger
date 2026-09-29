@@ -128,13 +128,12 @@ class ProjectRepository {
   }
 
   // ─── GET /projects/{id}/members ───────────────────────────────────────────
-  Future<ApiResult<List<Map<String, dynamic>>>> getProjectMembers(
+  Future<ApiResult<List<UserModel>>> getProjectMembers(
       String id) async {
     try {
       final resp = await _dio.get(ApiEndpoints.projectMembers(id));
       if (resp.statusCode == 200) {
-        final list =
-            (resp.data as List).cast<Map<String, dynamic>>();
+        final list = (resp.data as List).map((m) => UserModel.fromJson(m)).toList();
         return ApiSuccess(list);
       }
       return ApiError(ApiException.fromResponse(
@@ -199,6 +198,29 @@ class ProjectRepository {
         resp.statusCode,
         resp.data,
         'Failed to load timeline',
+      ));
+    } on DioException catch (e) {
+      return ApiError(ApiException.fromDio(e));
+    }
+  }
+
+  // ─── POST /projects/{id}/tech-lead (Admin) ──────────────────────────────
+  Future<ApiResult<ProjectModel>> assignTechLead(
+      String projectId, List<String> techLeadIds) async {
+    try {
+      final resp = await _dio.post(
+        ApiEndpoints.projectTechLead(projectId),
+        data: {
+          'techLeadIds': techLeadIds,
+        },
+      );
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        return ApiSuccess(ProjectModel.fromJson(resp.data));
+      }
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to assign Tech Lead',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
