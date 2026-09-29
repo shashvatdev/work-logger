@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
 import '../../core/api/api_exception.dart';
 import '../models/office_model.dart';
 
@@ -8,7 +9,7 @@ class GeofenceRepository {
 
   Future<ApiResult<List<OfficeModel>>> getOffices() async {
     try {
-      final resp = await _dio.get('/geofence');
+      final resp = await _dio.get(ApiEndpoints.geofence);
       if (resp.statusCode == 200) {
         final data = resp.data;
         List rawList = [];
@@ -34,7 +35,7 @@ class GeofenceRepository {
     required double radiusInMeters,
   }) async {
     try {
-      final resp = await _dio.post('/geofence', data: {
+      final resp = await _dio.post(ApiEndpoints.geofence, data: {
         'name': name,
         'address': address,
         'latitude': latitude,
@@ -59,14 +60,14 @@ class GeofenceRepository {
     required double radiusInMeters,
   }) async {
     try {
-      final resp = await _dio.put('/geofence/$id', data: {
+      final resp = await _dio.post(ApiEndpoints.geofenceUpdate(id), data: {
         'name': name,
         'address': address,
         'latitude': latitude,
         'longitude': longitude,
         'radiusInMeters': radiusInMeters,
       });
-      if (resp.statusCode == 200) {
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
         return ApiSuccess(OfficeModel.fromJson(resp.data));
       }
       return ApiError(ApiException.fromResponse(resp.statusCode, resp.data, 'Failed to update office'));
@@ -77,7 +78,7 @@ class GeofenceRepository {
 
   Future<ApiResult<void>> deleteOffice(String id) async {
     try {
-      final resp = await _dio.delete('/geofence/$id');
+      final resp = await _dio.post(ApiEndpoints.geofenceDelete(id));
       if (resp.statusCode == 204 || resp.statusCode == 200) {
         return const ApiSuccess(null);
       }

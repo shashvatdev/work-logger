@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../providers/app_providers.dart';
 import '../../features/auth/auth_screen.dart';
 import '../../features/auth/change_password_screen.dart';
+import '../../features/auth/forgot_password_screen.dart';
+import '../../features/auth/reset_password_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/home/tech_lead_projects_screen.dart';
 import '../../features/log/log_screen.dart';
@@ -42,7 +44,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final loggedIn = currentUser != null;
       final onAuth = state.matchedLocation == '/auth';
-      final isPublic = onAuth || state.matchedLocation == '/change-password';
+      final isPublic = onAuth ||
+          state.matchedLocation == '/change-password' ||
+          state.matchedLocation == '/forgot-password' ||
+          state.matchedLocation == '/reset-password';
 
       if (!loggedIn && !isPublic) return '/auth';
       if (loggedIn && onAuth) {
@@ -56,6 +61,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/change-password',
           builder: (_, __) => const ChangePasswordScreen()),
+      GoRoute(
+          path: '/forgot-password',
+          builder: (_, __) => const ForgotPasswordScreen()),
+      GoRoute(
+        path: '/reset-password',
+        builder: (_, state) {
+          final email = (state.extra as String?) ?? '';
+          return ResetPasswordScreen(email: email);
+        },
+      ),
 
       // ── Employee & Tech Lead routes ─────────────────────────────────────────
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),

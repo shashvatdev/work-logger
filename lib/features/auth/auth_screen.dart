@@ -248,19 +248,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
                     const SizedBox(height: AppSpacing.md),
 
-                    // ── Change Password link ─────────────────────────────────
-                    Center(
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ChangePasswordScreen(),
-                            ),
-                          );
-                        },
+                  // ── Links ────────────────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: () => context.push('/forgot-password'),
                         child: Text(
-                          'Change Password?',
+                          'Forgot Password?',
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium
@@ -270,7 +265,28 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               ),
                         ),
                       ),
-                    ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ChangePasswordScreen(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'Change Password',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                color: AppColors.textSecondary(context),
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
 
                     SizedBox(height: size.height * 0.05),
                 ],

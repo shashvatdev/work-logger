@@ -21,28 +21,54 @@ class _NewRequestSheetState extends ConsumerState<NewRequestSheet> {
   final _reasonCtrl = TextEditingController();
   bool _loading = false;
 
+  void _showError(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Invalid Selection'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _submit() async {
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a date'), backgroundColor: Colors.red));
+      _showError('Please select a date');
       return;
     }
-    if (_punchIn == null && _punchOut == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please provide at least one punch time'), backgroundColor: Colors.red));
+    if (_punchIn == null) {
+      _showError('Please select Punch In time');
       return;
     }
+    if (_punchOut == null) {
+      _showError('Please select Punch Out time');
+      return;
+    }
+
+    final inMinutes = _punchIn!.hour * 60 + _punchIn!.minute;
+    final outMinutes = _punchOut!.hour * 60 + _punchOut!.minute;
+    if (outMinutes <= inMinutes) {
+      _showError('Punch Out time must be after Punch In time');
+      return;
+    }
+
     if (_reasonCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please provide a reason'), backgroundColor: Colors.red));
+      _showError('Please provide a reason');
       return;
     }
 
     setState(() => _loading = true);
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-      final inStr = _punchIn != null ? '${dateStr}T${_punchIn!.hour.toString().padLeft(2, '0')}:${_punchIn!.minute.toString().padLeft(2, '0')}:00' : null;
-      final outStr = _punchOut != null ? '${dateStr}T${_punchOut!.hour.toString().padLeft(2, '0')}:${_punchOut!.minute.toString().padLeft(2, '0')}:00' : null;
+      final inStr = '${dateStr}T${_punchIn!.hour.toString().padLeft(2, '0')}:${_punchIn!.minute.toString().padLeft(2, '0')}:00';
+      final outStr = '${dateStr}T${_punchOut!.hour.toString().padLeft(2, '0')}:${_punchOut!.minute.toString().padLeft(2, '0')}:00';
       
       await ref.read(regularizationRepoProvider).submitRequest(
         date: dateStr,
@@ -59,8 +85,7 @@ class _NewRequestSheetState extends ConsumerState<NewRequestSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red));
+        _showError('Error: ${e.toString()}');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -101,8 +126,21 @@ class _NewRequestSheetState extends ConsumerState<NewRequestSheet> {
                   trailing: const Icon(Icons.access_time, color: AppColors.accent),
                   shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
                   onTap: () async {
-                    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                    if (t != null) setState(() => _punchIn = t);
+                    final t = await showTimePicker(
+                        context: context, 
+                        initialTime: _punchIn ?? TimeOfDay.now()
+                    );
+                    if (t != null) {
+                      if (_punchOut != null) {
+                        final inMinutes = t.hour * 60 + t.minute;
+                        final outMinutes = _punchOut!.hour * 60 + _punchOut!.minute;
+                        if (inMinutes >= outMinutes) {
+                          _showError('Punch In time (${t.format(context)}) must be before Punch Out time (${_punchOut!.format(context)}).');
+                          return;
+                        }
+                      }
+                      setState(() => _punchIn = t);
+                    }
                   },
                 ),
               ),
@@ -113,8 +151,25 @@ class _NewRequestSheetState extends ConsumerState<NewRequestSheet> {
                   trailing: const Icon(Icons.access_time, color: AppColors.accent),
                   shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
                   onTap: () async {
-                    final t = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-                    if (t != null) setState(() => _punchOut = t);
+                    final initialTime = _punchOut ??
+                        (_punchIn != null
+                            ? TimeOfDay(hour: (_punchIn!.hour + 1) % 24, minute: _punchIn!.minute)
+                            : TimeOfDay.now());
+                    final t = await showTimePicker(
+                        context: context, 
+                        initialTime: initialTime
+                    );
+                    if (t != null) {
+                      if (_punchIn != null) {
+                        final inMinutes = _punchIn!.hour * 60 + _punchIn!.minute;
+                        final outMinutes = t.hour * 60 + t.minute;
+                        if (outMinutes <= inMinutes) {
+                          _showError('Punch Out time (${t.format(context)}) must be after Punch In time (${_punchIn!.format(context)}).');
+                          return;
+                        }
+                      }
+                      setState(() => _punchOut = t);
+                    }
                   },
                 ),
               ),

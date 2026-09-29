@@ -7,6 +7,8 @@ class ApiEndpoints {
   static const String refresh = '/auth/refresh';
   static const String logout = '/auth/logout';
   static const String changePassword = '/auth/change-password';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
 
   // ── USERS ───────────────────────────────────────────────────────────────────
   static const String users = '/users';
@@ -47,6 +49,12 @@ class ApiEndpoints {
   static String attachmentById(String id) => '/attachments/$id';
   static String attachmentDelete(String id) => '/attachments/$id/delete';
   static String attachmentDownload(String id) => '/attachments/$id/download';
+
+  // ── GEOFENCE ─────────────────────────────────────────────────────────────────
+  static const String geofence = '/geofence';
+  static String geofenceById(String id) => '/geofence/$id';
+  static String geofenceUpdate(String id) => '/geofence/$id/update';
+  static String geofenceDelete(String id) => '/geofence/$id/delete';
 
   // ── SEARCH ───────────────────────────────────────────────────────────────────
   static const String search = '/search';

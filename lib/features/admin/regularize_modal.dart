@@ -38,9 +38,29 @@ class _RegularizeModalState extends ConsumerState<RegularizeModal> {
   Future<void> _pickTime(bool isPunchIn) async {
     final time = await showTimePicker(
       context: context,
-      initialTime: isPunchIn ? (_punchInTime ?? TimeOfDay.now()) : (_punchOutTime ?? TimeOfDay.now()),
+      initialTime: isPunchIn ? (_punchInTime ?? TimeOfDay.now()) : (_punchOutTime ?? _punchInTime ?? TimeOfDay.now()),
     );
     if (time != null && mounted) {
+      if (isPunchIn && _punchOutTime != null) {
+        final inMinutes = time.hour * 60 + time.minute;
+        final outMinutes = _punchOutTime!.hour * 60 + _punchOutTime!.minute;
+        if (inMinutes >= outMinutes) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Punch In time must be before Punch Out time'), backgroundColor: Colors.red),
+          );
+          return;
+        }
+      } else if (!isPunchIn && _punchInTime != null) {
+        final inMinutes = _punchInTime!.hour * 60 + _punchInTime!.minute;
+        final outMinutes = time.hour * 60 + time.minute;
+        if (outMinutes <= inMinutes) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Punch Out time must be after Punch In time'), backgroundColor: Colors.red),
+          );
+          return;
+        }
+      }
+
       setState(() {
         if (isPunchIn) {
           _punchInTime = time;
@@ -62,6 +82,15 @@ class _RegularizeModalState extends ConsumerState<RegularizeModal> {
     if (_punchInTime == null || _punchOutTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select both Punch In and Punch Out times')),
+      );
+      return;
+    }
+
+    final inMinutes = _punchInTime!.hour * 60 + _punchInTime!.minute;
+    final outMinutes = _punchOutTime!.hour * 60 + _punchOutTime!.minute;
+    if (outMinutes <= inMinutes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Punch Out time must be after Punch In time')),
       );
       return;
     }

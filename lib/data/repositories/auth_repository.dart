@@ -82,4 +82,59 @@ class AuthRepository {
       return ApiError(ApiException.fromDio(e));
     }
   }
+
+  /// POST /auth/forgot-password
+  Future<ApiResult<void>> forgotPassword({
+    required String email,
+  }) async {
+    try {
+      final resp = await _dio.post(
+        ApiEndpoints.forgotPassword,
+        data: {'email': email},
+      );
+
+      if (resp.statusCode == 200 || resp.statusCode == 204) {
+        return const ApiSuccess(null);
+      }
+
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to send password reset OTP.',
+      ));
+    } on DioException catch (e) {
+      return ApiError(ApiException.fromDio(e));
+    }
+  }
+
+  /// POST /auth/reset-password
+  Future<ApiResult<void>> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      final resp = await _dio.post(
+        ApiEndpoints.resetPassword,
+        data: {
+          'email': email,
+          'otp': otp,
+          'newPassword': newPassword,
+        },
+      );
+
+      if (resp.statusCode == 200 || resp.statusCode == 204) {
+        return const ApiSuccess(null);
+      }
+
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to reset password.',
+      ));
+    } on DioException catch (e) {
+      return ApiError(ApiException.fromDio(e));
+    }
+  }
 }
+

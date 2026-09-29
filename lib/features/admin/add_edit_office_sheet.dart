@@ -190,14 +190,57 @@ class _AddEditOfficeSheetState extends ConsumerState<AddEditOfficeSheet> {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            Text('Radius: ${_radius.toInt()}m', style: Theme.of(context).textTheme.bodyMedium),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.radar_rounded, size: 20, color: AppColors.accent),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      'Radius: ${_radius.toInt()} meters',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: const Size(40, 32),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _radius > 10
+                          ? () => setState(() => _radius = (_radius - 10).clamp(10.0, 1000.0))
+                          : null,
+                      child: const Text('-10m', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    FilledButton.tonal(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: const Size(40, 32),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: _radius < 1000
+                          ? () => setState(() => _radius = (_radius + 10).clamp(10.0, 1000.0))
+                          : null,
+                      child: const Text('+10m', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             Slider(
-              value: _radius,
-              min: 50,
+              value: _radius.clamp(10.0, 500.0),
+              min: 10,
               max: 500,
-              divisions: 9,
+              divisions: 49,
               label: '${_radius.toInt()}m',
-              onChanged: (val) => setState(() => _radius = val),
+              onChanged: (val) => setState(() => _radius = (val / 10).round() * 10.0),
             ),
             const SizedBox(height: AppSpacing.lg),
             PremiumButton(
