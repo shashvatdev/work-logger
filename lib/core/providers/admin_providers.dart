@@ -56,3 +56,17 @@ final allAttendanceDateProvider = FutureProvider.family<List<Map<String, dynamic
 
   return records;
 });
+
+final userAttendanceHistoryProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, userId) async {
+  final repo = ref.read(adminRepositoryProvider);
+  final res = await repo.getUserAttendance(userId);
+  if (!res.isSuccess) throw res.error;
+
+  final list = List<Map<String, dynamic>>.from(res.data);
+  list.sort((a, b) {
+    final dateA = (a['date'] ?? a['createdAt'] ?? '').toString();
+    final dateB = (b['date'] ?? b['createdAt'] ?? '').toString();
+    return dateB.compareTo(dateA); // Newest date first
+  });
+  return list;
+});

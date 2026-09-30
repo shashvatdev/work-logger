@@ -6,6 +6,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/widgets.dart';
 import '../../core/providers/admin_providers.dart';
 import 'regularize_modal.dart';
+import 'user_attendance_history_screen.dart';
 
 class AdminAttendanceScreen extends ConsumerStatefulWidget {
   const AdminAttendanceScreen({super.key});
@@ -104,63 +105,83 @@ class _AdminAttendanceScreenState extends ConsumerState<AdminAttendanceScreen> {
                       final punchOutStr = formatTimeStr(punchOut);
 
                       return SurfaceCard(
-                        child: Row(
-                          children: [
-                            InitialsAvatar(
-                              name: name,
-                              radius: AppSpacing.avatarLg,
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        child: InkWell(
+                          onTap: userId.isNotEmpty
+                              ? () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => UserAttendanceHistoryScreen(
+                                        userId: userId,
+                                        userName: name,
+                                        userEmail: record['userEmail'] as String?,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              : null,
+                          borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                          child: Row(
+                            children: [
+                              InitialsAvatar(
+                                name: name,
+                                radius: AppSpacing.avatarLg,
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.xs),
+                                    Text(
+                                      'In: $punchInStr • Out: $punchOutStr',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: AppColors.textSecondary(context),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  Text(
-                                    name,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                  ChipLabel(
+                                    label: status,
+                                    color: status == 'Present' ? AppColors.success : AppColors.error,
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
-                                  Text(
-                                    'In: $punchInStr • Out: $punchOutStr',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: AppColors.textSecondary(context),
+                                  InkWell(
+                                    onTap: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) => RegularizeModal(
+                                          userId: userId,
+                                          userName: name,
+                                          dateStr: dateStr,
                                         ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                                      child: Text(
+                                        'Regularize',
+                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: AppColors.accent,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                ChipLabel(
-                                  label: status,
-                                  color: status == 'Present' ? AppColors.success : AppColors.error,
-                                ),
-                                const SizedBox(height: AppSpacing.xs),
-                                InkWell(
-                                  onTap: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) => RegularizeModal(
-                                        userId: userId,
-                                        userName: name,
-                                        dateStr: dateStr,
-                                      ),
-                                    );
-                                  },
-                                  child: Text(
-                                    'Regularize',
-                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                          color: AppColors.accent,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
