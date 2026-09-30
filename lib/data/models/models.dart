@@ -1,6 +1,6 @@
 import '../../core/utils/date_extensions.dart';
 
-enum UserRole { admin, employee }
+enum UserRole { superAdmin, admin, employee }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UserModel
@@ -28,11 +28,23 @@ class UserModel {
     this.assignedOfficeName,
   });
 
+  bool get isSuperAdmin => role == UserRole.superAdmin;
   bool get isAdmin => role == UserRole.admin;
   bool get isEmployee => role == UserRole.employee;
 
+  String get roleDisplay {
+    switch (role) {
+      case UserRole.superAdmin:
+        return 'Super Admin';
+      case UserRole.admin:
+        return 'Admin';
+      case UserRole.employee:
+        return 'Employee';
+    }
+  }
+
   bool canManageProject(ProjectModel project) {
-    return isAdmin || project.techLeads.any((tl) => tl.id == id);
+    return isAdmin || isSuperAdmin || project.techLeads.any((tl) => tl.id == id);
   }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -46,12 +58,21 @@ class UserModel {
       officeId ??= json['assignedOffice']['id'] as String?;
       officeName ??= json['assignedOffice']['name'] as String?;
     }
+
+    UserRole parsedRole;
+    if (roleStr == 'superadmin') {
+      parsedRole = UserRole.superAdmin;
+    } else if (roleStr == 'admin') {
+      parsedRole = UserRole.admin;
+    } else {
+      parsedRole = UserRole.employee;
+    }
     
     return UserModel(
       id: (json['id'] ?? json['userId']) as String,
       name: (json['name'] ?? 'Unknown User') as String,
       email: (json['email'] ?? '') as String,
-      role: roleStr == 'admin' ? UserRole.admin : UserRole.employee,
+      role: parsedRole,
       isActive: json['isActive'] as bool? ?? true,
       hasLoggedToday: json['hasLoggedToday'] as bool? ?? false,
       createdAt: parseBackendTime(json['createdAt'] as String?),
@@ -64,7 +85,7 @@ class UserModel {
         'id': id,
         'name': name,
         'email': email,
-        'role': isAdmin ? 'Admin' : 'Employee',
+        'role': isSuperAdmin ? 'SuperAdmin' : (isAdmin ? 'Admin' : 'Employee'),
         'isActive': isActive,
       };
 }

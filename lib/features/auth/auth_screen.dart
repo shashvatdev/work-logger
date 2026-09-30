@@ -78,7 +78,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         ref.invalidate(allUsersProvider);
         
         setState(() => _loading = false);
-        context.go(user.isAdmin ? '/admin/employees' : '/home');
+        if (user.isSuperAdmin) {
+          context.go('/organizations');
+        } else if (user.isAdmin) {
+          context.go('/admin/employees');
+        } else {
+          context.go('/home');
+        }
         break;
       case ApiError(exception: final ex):
         setState(() {

@@ -133,13 +133,20 @@ class ProjectRepository {
     try {
       final resp = await _dio.get(ApiEndpoints.projectMembers(id));
       if (resp.statusCode == 200) {
-        final list = (resp.data as List).map((m) => UserModel.fromJson(m)).toList();
+        final dynamic data = resp.data;
+        List rawList = [];
+        if (data is List) {
+          rawList = data;
+        } else if (data is Map) {
+          rawList = data['members'] ?? data['users'] ?? data['data'] ?? [];
+        }
+        final list = rawList.map((m) => UserModel.fromJson(m as Map<String, dynamic>)).toList();
         return ApiSuccess(list);
       }
       return ApiError(ApiException.fromResponse(
         resp.statusCode,
         resp.data,
-        'Failed',
+        'Failed to load project members',
       ));
     } on DioException catch (e) {
       return ApiError(ApiException.fromDio(e));
@@ -154,7 +161,9 @@ class ProjectRepository {
         ApiEndpoints.projectMembers(projectId),
         data: {'userId': userId},
       );
-      if (resp.statusCode == 201) return const ApiSuccess(null);
+      if (resp.statusCode == 200 || resp.statusCode == 201 || resp.statusCode == 204) {
+        return const ApiSuccess(null);
+      }
       return ApiError(ApiException.fromResponse(
         resp.statusCode,
         resp.data,
@@ -171,7 +180,9 @@ class ProjectRepository {
     try {
       final resp =
           await _dio.post(ApiEndpoints.projectMemberRemove(projectId, userId));
-      if (resp.statusCode == 204) return const ApiSuccess(null);
+      if (resp.statusCode == 200 || resp.statusCode == 201 || resp.statusCode == 204) {
+        return const ApiSuccess(null);
+      }
       return ApiError(ApiException.fromResponse(
         resp.statusCode,
         resp.data,

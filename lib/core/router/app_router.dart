@@ -25,6 +25,7 @@ import '../../features/admin/geofence_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/regularization/presentation/employee/my_requests_screen.dart';
 import '../../features/regularization/presentation/admin/admin_requests_screen.dart';
+import '../../features/superadmin/organizations_screen.dart';
 import '../widgets/splash_screen.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -51,6 +52,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (!loggedIn && !isPublic) return '/auth';
       if (loggedIn && onAuth) {
+        if (currentUser.isSuperAdmin) return '/organizations';
         return currentUser.isAdmin ? '/admin/employees' : '/home';
       }
       return null;
@@ -58,6 +60,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/auth', builder: (_, __) => const AuthScreen()),
+      // ── SuperAdmin routes ──────────────────────────────────────────────────
+      GoRoute(path: '/organizations', builder: (_, __) => const OrganizationsScreen()),
+
       GoRoute(
           path: '/change-password',
           builder: (_, __) => const ChangePasswordScreen()),

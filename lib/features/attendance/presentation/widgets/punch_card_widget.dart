@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../providers/attendance_provider.dart';
@@ -156,6 +157,11 @@ class _PunchCardWidgetState extends ConsumerState<PunchCardWidget>
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider);
+    if (user?.isSuperAdmin == true) {
+      return const SizedBox.shrink();
+    }
+
     final statusAsync = ref.watch(attendanceStatusProvider);
 
     return statusAsync.when(

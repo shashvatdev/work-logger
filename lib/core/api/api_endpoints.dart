@@ -58,4 +58,9 @@ class ApiEndpoints {
 
   // ── SEARCH ───────────────────────────────────────────────────────────────────
   static const String search = '/search';
+
+  // ── ORGANIZATIONS (SUPER ADMIN) ──────────────────────────────────────────────
+  static const String organizations = '/organizations';
+  static String organizationById(String id) => '/organizations/$id';
 }
+

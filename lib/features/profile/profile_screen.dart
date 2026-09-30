@@ -195,8 +195,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   ChipLabel(
-                    label: user.isAdmin ? 'Admin' : 'Employee',
-                    color: user.isAdmin ? AppColors.accent : AppColors.textSecondary(context),
+                    label: user.roleDisplay,
+                    color: user.isSuperAdmin
+                        ? AppColors.warning
+                        : (user.isAdmin ? AppColors.accent : AppColors.textSecondary(context)),
                   ),
                   const SizedBox(height: AppSpacing.xl),
                 ],

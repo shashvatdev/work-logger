@@ -59,10 +59,12 @@ class AppDrawer extends ConsumerWidget {
                       ),
                       const Spacer(),
                       ChipLabel(
-                        label: user?.isAdmin == true ? 'Admin' : 'Employee',
-                        color: user?.isAdmin == true
-                            ? AppColors.accent
-                            : AppColors.textSecondary(context),
+                        label: user?.roleDisplay ?? 'Employee',
+                        color: user?.isSuperAdmin == true
+                            ? AppColors.warning
+                            : (user?.isAdmin == true
+                                ? AppColors.accent
+                                : AppColors.textSecondary(context)),
                       ),
                     ],
                   ),
@@ -108,6 +110,18 @@ class AppDrawer extends ConsumerWidget {
 
                   _SectionHeader(title: 'ACCOUNT'),
 
+                  // Organizations (SuperAdmin only)
+                  if (user?.isSuperAdmin == true)
+                    _DrawerTile(
+                      icon: Icons.business_rounded,
+                      title: 'Organizations',
+                      subtitle: 'Manage businesses & workspaces',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.go('/organizations');
+                      },
+                    ),
+
                   // Profile
                   _DrawerTile(
                     icon: Icons.person_outline,
@@ -119,29 +133,31 @@ class AppDrawer extends ConsumerWidget {
                     },
                   ),
 
-                  // My Attendance
-                  _DrawerTile(
-                    icon: Icons.calendar_month_outlined,
-                    title: 'My Attendance',
-                    subtitle: 'View your punch history',
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.push('/attendance');
-                    },
-                  ),
+                  // My Attendance (Non-SuperAdmin)
+                  if (user?.isSuperAdmin != true)
+                    _DrawerTile(
+                      icon: Icons.calendar_month_outlined,
+                      title: 'My Attendance',
+                      subtitle: 'View your punch history',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/attendance');
+                      },
+                    ),
 
-                  // Regularization Requests
-                  _DrawerTile(
-                    icon: Icons.pending_actions_outlined,
-                    title: 'My Requests',
-                    subtitle: 'Attendance regularization',
-                    onTap: () {
-                      Navigator.pop(context);
-                      context.push('/regularization/my');
-                    },
-                  ),
+                  // Regularization Requests (Non-SuperAdmin)
+                  if (user?.isSuperAdmin != true)
+                    _DrawerTile(
+                      icon: Icons.pending_actions_outlined,
+                      title: 'My Requests',
+                      subtitle: 'Attendance regularization',
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/regularization/my');
+                      },
+                    ),
 
-                  if (user?.isAdmin == true)
+                  if (user?.isAdmin == true && user?.isSuperAdmin != true)
                     _DrawerTile(
                       icon: Icons.admin_panel_settings_outlined,
                       title: 'All Requests',
@@ -178,14 +194,15 @@ class AppDrawer extends ConsumerWidget {
                   ),
 
                   // Delete Account
-                  _DrawerTile(
-                    icon: Icons.delete_forever_outlined,
-                    title: 'Delete Account',
-                    subtitle: 'Remove account permanently',
-                    iconColor: AppColors.error,
-                    textColor: AppColors.error,
-                    onTap: () => _showDeleteAccountDialog(context, ref),
-                  ),
+                  if (user?.isSuperAdmin != true)
+                    _DrawerTile(
+                      icon: Icons.delete_forever_outlined,
+                      title: 'Delete Account',
+                      subtitle: 'Remove account permanently',
+                      iconColor: AppColors.error,
+                      textColor: AppColors.error,
+                      onTap: () => _showDeleteAccountDialog(context, ref),
+                    ),
 
                   const SizedBox(height: AppSpacing.sm),
                   Padding(

@@ -117,6 +117,11 @@ class AppColors {
           ? surfaceLight
           : surfaceDark;
 
+  static Color surfaceVariant(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.light
+          ? const Color(0xFFE5E5EA).withOpacity(0.6)
+          : const Color(0xFF2C2C2E);
+
   static Color elevated(BuildContext context) =>
       Theme.of(context).brightness == Brightness.light
           ? elevatedSurfaceLight

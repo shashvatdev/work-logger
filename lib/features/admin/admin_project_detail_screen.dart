@@ -122,9 +122,14 @@ class AdminProjectDetailScreen extends ConsumerWidget {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.md,
                           AppSpacing.sm, AppSpacing.md, AppSpacing.lg),
-                      child: _AddMemberButton(project: project, allUsers: allUsers),
+                      child: _AddMemberButton(
+                        project: project,
+                        allUsers: allUsers,
+                        members: members,
+                      ),
                     ),
                   ),
+
 
                 // ── Timeline ───────────────────────────────────────────────────
                 SliverToBoxAdapter(
@@ -374,7 +379,9 @@ class _ProjectHeaderCard extends ConsumerWidget {
                     onPressed: () async {
                       final repo = ProjectRepository();
                       await repo.assignTechLead(project.id, selectedIds.toList());
+                      ref.invalidate(projectMembersProvider(project.id));
                       ref.invalidate(allProjectsProvider);
+                      ref.invalidate(myProjectsProvider);
                       if (context.mounted) Navigator.pop(context);
                     },
                   ),
@@ -473,7 +480,9 @@ class _RemoveButtonState extends ConsumerState<_RemoveButton> with SingleTickerP
         _anim.reverse();
         final repo = ProjectRepository();
         await repo.removeProjectMember(widget.project.id, widget.member.id);
+        ref.invalidate(projectMembersProvider(widget.project.id));
         ref.invalidate(allProjectsProvider);
+        ref.invalidate(myProjectsProvider);
       },
       onTapCancel: () => _anim.reverse(),
       child: ScaleTransition(
@@ -500,11 +509,16 @@ class _RemoveButtonState extends ConsumerState<_RemoveButton> with SingleTickerP
 class _AddMemberButton extends ConsumerWidget {
   final ProjectModel project;
   final List<UserModel> allUsers;
-  const _AddMemberButton({required this.project, required this.allUsers});
+  final List<UserModel> members;
+  const _AddMemberButton({
+    required this.project,
+    required this.allUsers,
+    required this.members,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final employees = allUsers.where((u) => !u.isAdmin).toList();
+    final employees = allUsers.where((u) => !u.isAdmin && !u.isSuperAdmin).toList();
 
     if (employees.isEmpty) return const SizedBox.shrink();
 
@@ -531,13 +545,21 @@ class _AddMemberButton extends ConsumerWidget {
             const SizedBox(height: 12),
             for (final user in candidates) ...[
               (() {
-                final isAlreadyAdded = project.memberIds.contains(user.id);
+                final isAlreadyAdded = members.any((m) => m.id == user.id) ||
+                    project.memberIds.contains(user.id);
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 4),
                   leading: InitialsAvatar(name: user.name, radius: 18),
                   title: Text(user.name,
                       style: Theme.of(context).textTheme.bodyLarge),
+                  subtitle: Text(
+                    user.email,
+                    style: TextStyle(
+                      color: AppColors.textSecondary(context),
+                      fontSize: 12,
+                    ),
+                  ),
                   trailing: isAlreadyAdded
                       ? const Icon(Icons.check, color: AppColors.accent)
                       : null,
@@ -548,7 +570,9 @@ class _AddMemberButton extends ConsumerWidget {
                     } else {
                       await repo.addProjectMember(project.id, user.id);
                     }
+                    ref.invalidate(projectMembersProvider(project.id));
                     ref.invalidate(allProjectsProvider);
+                    ref.invalidate(myProjectsProvider);
                     if (context.mounted) Navigator.pop(context);
                   },
                 );

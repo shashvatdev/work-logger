@@ -146,51 +146,53 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
 
-            // ── Attendance Punch Card ─────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    0, AppSpacing.sm, 0, AppSpacing.xs),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Attendance',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  color: AppColors.textSecondary(context),
-                                  fontWeight: FontWeight.w400,
+            // ── Attendance Punch Card (Hidden for SuperAdmin) ────────────
+            if (!user.isSuperAdmin)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      0, AppSpacing.sm, 0, AppSpacing.xs),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Attendance',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color: AppColors.textSecondary(context),
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 13,
+                                    letterSpacing: 0.5,
+                                  ),
+                            ),
+                            GestureDetector(
+                              onTap: () => context.push('/attendance'),
+                              child: Text(
+                                'View History',
+                                style: TextStyle(
+                                  color: AppColors.accent,
                                   fontSize: 13,
-                                  letterSpacing: 0.5,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                          ),
-                          GestureDetector(
-                            onTap: () => context.push('/attendance'),
-                            child: Text(
-                              'View History',
-                              style: TextStyle(
-                                color: AppColors.accent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const PunchCardWidget(),
-                  ],
+                      const PunchCardWidget(),
+                    ],
+                  ),
                 ),
               ),
-            ),
+
 
 
             // ── "Today's Log" status ─────────────────────────────────────────
