@@ -305,16 +305,15 @@ class AppDrawer extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.accentGradient,
-                      borderRadius:
-                          BorderRadius.circular(AppSpacing.radiusSm),
+                  ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.radiusSm),
+                    child: Image.asset(
+                      'assets/icon/app_icon.png',
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.cover,
                     ),
-                    child: const Icon(Icons.edit_note_rounded,
-                        color: Colors.white, size: 16),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Column(

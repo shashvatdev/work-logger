@@ -206,15 +206,7 @@ class _SplashScreenState extends State<SplashScreen>
                               width: 96,
                               height: 96,
                               decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF1A91FF),
-                                    Color(0xFF006EE6),
-                                  ],
-                                ),
+                                borderRadius: BorderRadius.circular(22),
                                 boxShadow: [
                                   BoxShadow(
                                     color: AppColors.accent.withOpacity(0.4),
@@ -223,11 +215,12 @@ class _SplashScreenState extends State<SplashScreen>
                                   ),
                                 ],
                               ),
-                              padding: const EdgeInsets.all(20),
-                              child: Image.asset(
-                                'assets/splash/splash_logo.png',
-                                fit: BoxFit.contain,
-                                color: Colors.white,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(22),
+                                child: Image.asset(
+                                  'assets/splash/splash_logo.png',
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                           ),

@@ -130,12 +130,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        gradient: AppColors.accentGradient,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(14),
                         boxShadow: AppColors.accentShadow,
                       ),
-                      child: const Icon(Icons.edit_note_rounded,
-                          color: Colors.white, size: 28),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.asset(
+                          'assets/icon/app_icon.png',
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xl),
