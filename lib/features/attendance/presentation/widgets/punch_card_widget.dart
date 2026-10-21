@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/date_extensions.dart';
 import '../providers/attendance_provider.dart';
 import '../../data/models/attendance_status.dart';
 
@@ -112,17 +114,39 @@ class _PunchCardWidgetState extends ConsumerState<PunchCardWidget>
       }
 
       ref.invalidate(attendanceStatusProvider);
-    } catch (e) {
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: AppColors.error,
+            content: Text(isPunchIn ? 'Punched in successfully!' : 'Punched out successfully!'),
+            backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
           ),
         );
+      }
+    } catch (e) {
+      if (mounted) {
+        final rawMsg = e.toString().replaceFirst('Exception: ', '');
+        final isWorkLogMissing = rawMsg.toLowerCase().contains('work log') ||
+            rawMsg.toLowerCase().contains('submit your work');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(rawMsg),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
+          ),
+        );
+
+        if (isWorkLogMissing) {
+          final today = DateTime.now();
+          context.push('/log/${today.logKey}');
+        }
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
