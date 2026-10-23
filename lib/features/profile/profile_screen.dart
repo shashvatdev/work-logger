@@ -149,8 +149,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: RefreshIndicator(
+          onRefresh: () async {
+            final repo = UserRepository();
+            final result = await repo.getMe();
+            if (result is ApiSuccess) {
+              ref.read(currentUserProvider.notifier).state = result.data;
+              _nameCtrl.text = result.data.name;
+            }
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.md),
@@ -312,6 +322,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

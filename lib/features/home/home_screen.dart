@@ -8,6 +8,7 @@ import '../../core/widgets/widgets.dart';
 import '../../core/utils/date_extensions.dart';
 import '../../data/models/models.dart';
 import '../attendance/presentation/widgets/punch_card_widget.dart';
+import '../attendance/presentation/providers/attendance_provider.dart';
 
 
 class HomeScreen extends ConsumerWidget {
@@ -18,6 +19,7 @@ class HomeScreen extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final myProjectsAsync = ref.watch(myProjectsProvider);
     final todayLogAsync = ref.watch(todayLogProvider);
+    final attendanceStatusAsync = ref.watch(attendanceStatusProvider);
     final today = DateTime.now();
 
     if (user == null) return const SizedBox.shrink();
@@ -63,6 +65,7 @@ class HomeScreen extends ConsumerWidget {
     final hasTodayLog = todayLog != null && todayLog.entries.isNotEmpty;
 
     final isProjectTechLead = myProjects.any((p) => p.techLeads.any((tl) => tl.id == user.id));
+    final isCompletedForToday = attendanceStatusAsync.valueOrNull?.isCompletedForToday ?? false;
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -255,6 +258,7 @@ class HomeScreen extends ConsumerWidget {
                                 index: i,
                                 child: _ProjectRow(
                                   project: myProjects[i],
+                                  user: user,
                                   onTap: () {
                                     context.push('/log/${today.logKey}?projectId=${myProjects[i].id}');
                                   },
@@ -282,10 +286,12 @@ class HomeScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               PremiumButton(
-                label: hasTodayLog ? 'Edit Today\'s Log' : 'Log Today\'s Work',
-                icon: hasTodayLog
-                    ? Icons.edit_outlined
-                    : Icons.add_rounded,
+                label: isCompletedForToday
+                    ? 'View Today\'s Log'
+                    : (hasTodayLog ? 'Edit Today\'s Log' : 'Log Today\'s Work'),
+                icon: isCompletedForToday
+                    ? Icons.visibility_outlined
+                    : (hasTodayLog ? Icons.edit_outlined : Icons.add_rounded),
                 onPressed: () => context.push('/log/${today.logKey}'),
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -348,15 +354,26 @@ class _TopActions extends ConsumerWidget {
 
 class _ProjectRow extends StatelessWidget {
   final dynamic project;
+  final UserModel user;
   final VoidCallback onTap;
-  const _ProjectRow({required this.project, required this.onTap});
+  const _ProjectRow({
+    required this.project,
+    required this.user,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final hasLead = project.techLeads.isNotEmpty;
+    final isLeadOnThisProject =
+        project.techLeads.any((tl) => tl.id == user.id) || user.isAdmin;
 
-    return InkWell(
-      onTap: onTap,
+    final isInactive = project.isActive == false;
+
+    return Opacity(
+      opacity: isInactive ? 0.5 : 1.0,
+      child: InkWell(
+      onTap: isInactive ? null : onTap,
       child: IntrinsicHeight(
         child: Row(
           children: [
@@ -375,11 +392,31 @@ class _ProjectRow extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            project.name,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  fontWeight: FontWeight.w500,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  project.name,
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                 ),
+                              ),
+                              if (isInactive) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.25),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text('Inactive',
+                                      style: TextStyle(
+                                          fontSize: 10, color: Colors.grey)),
+                                ),
+                              ],
+                            ],
                           ),
                           if (hasLead) ...[
                             const SizedBox(height: 2),
@@ -405,11 +442,12 @@ class _ProjectRow extends StatelessWidget {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: Icon(Icons.info_outline_rounded, size: 18, color: AppColors.accent),
-                      tooltip: 'Project details',
-                      onPressed: () => context.push('/projects/${project.id}'),
-                    ),
+                    if (isLeadOnThisProject)
+                      IconButton(
+                        icon: Icon(Icons.info_outline_rounded, size: 18, color: AppColors.accent),
+                        tooltip: 'Project details',
+                        onPressed: () => context.push('/projects/${project.id}'),
+                      ),
                     Icon(
                       Icons.arrow_forward_ios_rounded,
                       color: AppColors.textTertiary(context),
@@ -421,6 +459,7 @@ class _ProjectRow extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

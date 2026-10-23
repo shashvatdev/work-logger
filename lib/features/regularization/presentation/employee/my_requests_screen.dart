@@ -35,23 +35,41 @@ class MyRequestsScreen extends ConsumerWidget {
         backgroundColor: AppColors.accent,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: asyncRequests.when(
-        loading: () => ListView.builder(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: 4,
-          itemBuilder: (_, __) => const Padding(
-            padding: EdgeInsets.only(bottom: AppSpacing.sm),
-            child: SkeletonLoader(height: 120, width: double.infinity, borderRadius: 12),
-          ),
-        ),
-        error: (err, _) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.red))),
-        data: (requests) {
-          if (requests.isEmpty) {
-            return const Center(child: Text('No requests found'));
-          }
-          return ListView.builder(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(myRequestsProvider);
+        },
+        child: asyncRequests.when(
+          loading: () => ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(AppSpacing.md),
-            itemCount: requests.length,
+            itemCount: 4,
+            itemBuilder: (_, __) => const Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.sm),
+              child: SkeletonLoader(height: 120, width: double.infinity, borderRadius: 12),
+            ),
+          ),
+          error: (err, _) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+              Center(child: Text('Error: $err', style: const TextStyle(color: Colors.red))),
+            ],
+          ),
+          data: (requests) {
+            if (requests.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                  const Center(child: Text('No requests found')),
+                ],
+              );
+            }
+            return ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              itemCount: requests.length,
             itemBuilder: (context, index) {
               final req = requests[index];
               Color statusColor = AppColors.warning;
@@ -87,6 +105,7 @@ class MyRequestsScreen extends ConsumerWidget {
             },
           );
         },
+      ),
       ),
     );
   }

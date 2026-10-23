@@ -174,6 +174,27 @@ class ProjectRepository {
     }
   }
 
+  // ─── POST /projects/{id}/members/{userId}/status (Admin / Tech Lead) ──────
+  Future<ApiResult<void>> setMemberStatus(
+      String projectId, String userId, bool isActive) async {
+    try {
+      final resp = await _dio.post(
+        ApiEndpoints.projectMemberStatus(projectId, userId),
+        data: {'isActive': isActive},
+      );
+      if (resp.statusCode != null && resp.statusCode! >= 200 && resp.statusCode! < 300) {
+        return const ApiSuccess(null);
+      }
+      return ApiError(ApiException.fromResponse(
+        resp.statusCode,
+        resp.data,
+        'Failed to update member status',
+      ));
+    } on DioException catch (e) {
+      return ApiError(ApiException.fromDio(e));
+    }
+  }
+
   // ─── POST /projects/{id}/members/{userId}/remove (Admin) ──────────────────
   Future<ApiResult<void>> removeProjectMember(
       String projectId, String userId) async {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:track_it/core/api/api_exception.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/providers/app_providers.dart';
@@ -51,9 +53,16 @@ class AdminProjectDetailScreen extends ConsumerWidget {
             ],
           ),
           body: SafeArea(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(allProjectsProvider);
+                ref.invalidate(allUsersProvider);
+                ref.invalidate(projectMembersProvider(projectId));
+                ref.invalidate(projectTimelineProvider(projectId));
+              },
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                slivers: [
                 // ── Project Information & Tech Lead Card ─────────────────────
                 SliverToBoxAdapter(
                   child: Padding(
@@ -205,6 +214,7 @@ class AdminProjectDetailScreen extends ConsumerWidget {
 
                 const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
               ],
+            ),
             ),
           ),
         );
@@ -409,8 +419,15 @@ class _MemberRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.watch(currentUserProvider);
     final isAdmin = member.isAdmin;
     final isTechLead = project.techLeads.any((tl) => tl.id == member.id);
+    final isSelf = currentUser?.id == member.id;
+    // Only Admins can remove members; Tech Leads cannot.
+    final canRemove = canManage &&
+        !isAdmin &&
+        !isSelf &&
+        (currentUser?.isAdmin == true || currentUser?.isSuperAdmin == true);
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
@@ -453,9 +470,113 @@ class _MemberRow extends ConsumerWidget {
           ),
         ],
       ),
-      trailing: (canManage && !isAdmin)
-          ? _RemoveButton(project: project, member: member)
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Row(
+          children: [
+            _StatusBadge(isActive: member.isActive),
+            if (member.email.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  member.email,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      trailing: (canManage && !isAdmin && !isSelf)
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _StatusToggle(project: project, member: member),
+                if (canRemove) ...[
+                  const SizedBox(width: 8),
+                  _RemoveButton(project: project, member: member),
+                ],
+              ],
+            )
           : null,
+      onTap: () {
+        context.push('/admin/employees/${member.id}/calendar');
+      },
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final bool isActive;
+  const _StatusBadge({required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive ? Colors.green : Colors.grey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        isActive ? 'Active' : 'Inactive',
+        style: TextStyle(
+            color: color, fontSize: 10, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+class _StatusToggle extends ConsumerStatefulWidget {
+  final ProjectModel project;
+  final UserModel member;
+  const _StatusToggle({required this.project, required this.member});
+
+  @override
+  ConsumerState<_StatusToggle> createState() => _StatusToggleState();
+}
+
+class _StatusToggleState extends ConsumerState<_StatusToggle> {
+  bool? _optimistic;
+  bool _loading = false;
+
+  Future<void> _onChanged(bool value) async {
+    final previous = widget.member.isActive;
+    setState(() {
+      _optimistic = value;
+      _loading = true;
+    });
+    final result = await ProjectRepository()
+        .setMemberStatus(widget.project.id, widget.member.id, value);
+    if (!mounted) return;
+    if (result is ApiSuccess) {
+      ref.invalidate(projectMembersProvider(widget.project.id));
+      setState(() => _loading = false);
+    } else {
+      setState(() {
+        _optimistic = previous; // rollback
+        _loading = false;
+      });
+      final msg = result is ApiError
+          ? (result as ApiError).exception.message
+          : 'Failed to update status';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2));
+    }
+    return Switch(
+      value: _optimistic ?? widget.member.isActive,
+      onChanged: _onChanged,
     );
   }
 }

@@ -15,22 +15,33 @@ class AdminProjectListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final projectsAsync = ref.watch(allProjectsProvider);
 
-    return projectsAsync.when(
-      loading: () => ListView.separated(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        itemCount: 5,
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-        itemBuilder: (_, __) => const SkeletonRow(),
-      ),
-      error: (e, st) => Center(child: Text(e.toString())),
-      data: (allProjects) {
-        final active = allProjects.where((p) => !p.archived).toList();
-        final archived = allProjects.where((p) => p.archived).toList();
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(allProjectsProvider);
+      },
+      child: projectsAsync.when(
+        loading: () => ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          itemCount: 5,
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+          itemBuilder: (_, __) => const SkeletonRow(),
+        ),
+        error: (e, st) => ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+            Center(child: Text(e.toString())),
+          ],
+        ),
+        data: (allProjects) {
+          final active = allProjects.where((p) => !p.archived).toList();
+          final archived = allProjects.where((p) => p.archived).toList();
 
-        final topPadding = MediaQuery.of(context).padding.top + AppSpacing.sm;
+          final topPadding = MediaQuery.of(context).padding.top + AppSpacing.sm;
 
-        return CustomScrollView(
-          physics: const BouncingScrollPhysics(),
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           slivers: [
             // ── Header ──────────────────────────────────────────────────────────
             SliverToBoxAdapter(
@@ -170,6 +181,7 @@ class AdminProjectListScreen extends ConsumerWidget {
           ],
         );
       },
+      ),
     );
   }
 }

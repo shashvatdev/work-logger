@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:track_it/core/api/api_exception.dart';
 import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/date_extensions.dart';
+import '../../../../data/models/models.dart';
+import '../../../../data/repositories/log_repository.dart';
 import '../providers/attendance_provider.dart';
 import '../../data/models/attendance_status.dart';
 
@@ -105,7 +108,60 @@ class _PunchCardWidgetState extends ConsumerState<PunchCardWidget>
         return;
       }
 
-      // 5. API call
+      // 5. If Punch Out: Validate logged work time vs actual working duration
+      if (!isPunchIn) {
+        final status = ref.read(attendanceStatusProvider).valueOrNull;
+        final punchInTime = status?.todayRecord?.punchInTime;
+        if (punchInTime != null) {
+          final now = DateTime.now();
+          final workedDuration = now.difference(punchInTime);
+          final workedMins = workedDuration.inMinutes;
+
+          // Fetch today's log to check logged work time
+          final logRepo = LogRepository();
+          final logRes = await logRepo.getTodayLog();
+          final todayLog = switch (logRes) {
+            ApiSuccess(data: final log) => log,
+            _ => null,
+          };
+
+          if (todayLog != null && todayLog.entries.isNotEmpty) {
+            double totalLoggedMins = 0;
+            for (final entry in todayLog.entries) {
+              final lines = entry.description
+                  .split('\n')
+                  .map((l) => l.trim())
+                  .where((l) => l.isNotEmpty);
+
+              double entryMins = 0;
+              for (final line in lines) {
+                final match = RegExp(r'\(([^)]+)\)$').firstMatch(line);
+                if (match != null) {
+                  final timeStr = match.group(1) ?? '';
+                  entryMins += parseTimeToMinutes(timeStr);
+                }
+              }
+
+              if (entryMins > 0) {
+                totalLoggedMins += entryMins;
+              } else if (entry.timeSpent != null && entry.timeSpent!.isNotEmpty) {
+                totalLoggedMins += parseTimeToMinutes(entry.timeSpent!);
+              }
+            }
+
+            // Agar logged time actual work time se zyada hai toh block karo
+            if (totalLoggedMins > workedMins) {
+              final loggedStr = formatMinutesToDisplay(totalLoggedMins);
+              final workedStr = formatMinutesToDisplay(workedMins.toDouble().clamp(1, double.infinity));
+              throw Exception(
+                'Logged work time ($loggedStr) cannot exceed actual shift time ($workedStr). Please adjust your logged task hours before punch out.',
+              );
+            }
+          }
+        }
+      }
+
+      // 6. API call
       final apiService = ref.read(attendanceApiServiceProvider);
       if (isPunchIn) {
         await apiService.punchIn(position.latitude, position.longitude);

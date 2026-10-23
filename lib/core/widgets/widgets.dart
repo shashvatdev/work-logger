@@ -293,12 +293,14 @@ class SecondaryButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
+  final EdgeInsetsGeometry? padding;
 
   const SecondaryButton({
     super.key,
     required this.label,
     this.onPressed,
     this.icon,
+    this.padding,
   });
 
   @override
@@ -345,6 +347,8 @@ class _SecondaryButtonState extends State<SecondaryButton>
             Transform.scale(scale: _scale.value, child: child),
         child: Container(
           height: AppSpacing.buttonHeightSm,
+          padding: widget.padding ??
+              const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           decoration: BoxDecoration(
             color: AppColors.accentMid,
             borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -354,11 +358,12 @@ class _SecondaryButtonState extends State<SecondaryButton>
             ),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (widget.icon != null) ...[
                 Icon(widget.icon, color: AppColors.accent, size: 18),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
               ],
               Text(
                 widget.label,

@@ -29,6 +29,8 @@ class ApiEndpoints {
   static String projectMembers(String id) => '/projects/$id/members';
   static String projectMemberById(String id, String uid) =>
       '/projects/$id/members/$uid';
+  static String projectMemberStatus(String id, String uid) =>
+      '/projects/$id/members/$uid/status';
   static String projectMemberRemove(String id, String uid) =>
       '/projects/$id/members/$uid/remove';
   static String projectTimeline(String id) => '/projects/$id/timeline';

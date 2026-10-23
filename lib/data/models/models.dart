@@ -121,6 +121,8 @@ class ProjectModel {
   final int memberCount;
   final String? createdByName;
   final List<TechLeadModel> techLeads;
+  /// Whether the current user is still an active member of this project.
+  final bool isActive;
 
   const ProjectModel({
     required this.id,
@@ -132,6 +134,7 @@ class ProjectModel {
     this.memberCount = 0,
     this.createdByName,
     this.techLeads = const [],
+    this.isActive = true,
   });
 
   factory ProjectModel.fromJson(Map<String, dynamic> json) {
@@ -177,6 +180,9 @@ class ProjectModel {
       memberCount: json['memberCount'] as int? ?? memberIds.length,
       createdByName: json['createdByName'] as String?,
       techLeads: parsedTechLeads,
+      isActive: json['isActive'] as bool? ??
+          json['isMemberActive'] as bool? ??
+          true,
     );
   }
 
@@ -187,6 +193,7 @@ class ProjectModel {
     List<String>? memberIds,
     int? memberCount,
     List<TechLeadModel>? techLeads,
+    bool? isActive,
   }) {
     return ProjectModel(
       id: id,
@@ -198,6 +205,7 @@ class ProjectModel {
       memberCount: memberCount ?? this.memberCount,
       createdByName: createdByName,
       techLeads: techLeads ?? this.techLeads,
+      isActive: isActive ?? this.isActive,
     );
   }
 }

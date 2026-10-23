@@ -118,30 +118,48 @@ class _AttendanceCalendarScreenState
 
             // ── List ─────────────────────────────────────────────────────────
             Expanded(
-              child: calendarAsync.when(
-                loading: () => _buildSkeletonList(),
-                error: (e, _) => _buildError(context, e),
-                data: (days) {
-                  if (days.isEmpty) {
-                    return const EmptyStateWidget(
-                      icon: Icons.calendar_month_outlined,
-                      title: 'No records this month',
-                      subtitle: 'Attendance logs will appear here.',
-                    );
-                  }
-                  // Sort descending (latest first)
-                  final sorted = [...days]
-                    ..sort((a, b) => b.date.compareTo(a.date));
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md, vertical: AppSpacing.xs),
-                    itemCount: sorted.length,
-                    itemBuilder: (context, i) => _DayRow(
-                      day: sorted[i],
-                      isLast: i == sorted.length - 1,
-                    ),
-                  );
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(attendanceCalendarProvider((from: _from, to: _to)));
                 },
+                child: calendarAsync.when(
+                  loading: () => _buildSkeletonList(),
+                  error: (e, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                      _buildError(context, e),
+                    ],
+                  ),
+                  data: (days) {
+                    if (days.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          SizedBox(height: 80),
+                          EmptyStateWidget(
+                            icon: Icons.calendar_month_outlined,
+                            title: 'No records this month',
+                            subtitle: 'Attendance logs will appear here.',
+                          ),
+                        ],
+                      );
+                    }
+                    // Sort descending (latest first)
+                    final sorted = [...days]
+                      ..sort((a, b) => b.date.compareTo(a.date));
+                    return ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                      itemCount: sorted.length,
+                      itemBuilder: (context, i) => _DayRow(
+                        day: sorted[i],
+                        isLast: i == sorted.length - 1,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ],

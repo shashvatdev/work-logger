@@ -19,35 +19,51 @@ class TechLeadProjectsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('My Projects'),
       ),
-      body: projectsAsync.when(
-        loading: () => ListView.separated(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          itemCount: 5,
-          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
-          itemBuilder: (_, __) => const SkeletonRow(),
-        ),
-        error: (e, st) => Center(child: Text(e.toString())),
-        data: (allProjects) {
-          final ledProjects = allProjects
-              .where((p) => p.techLeads.any((tl) => tl.id == user?.id) && !p.archived)
-              .toList();
-
-          if (ledProjects.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                child: EmptyStateWidget(
-                  icon: Icons.folder_open_rounded,
-                  title: 'No led projects',
-                  subtitle: 'You are not leading any projects currently.',
-                ),
-              ),
-            );
-          }
-
-          return ListView.separated(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(allProjectsProvider);
+        },
+        child: projectsAsync.when(
+          loading: () => ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(AppSpacing.md),
-            itemCount: ledProjects.length,
+            itemCount: 5,
+            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (_, __) => const SkeletonRow(),
+          ),
+          error: (e, st) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+              Center(child: Text(e.toString())),
+            ],
+          ),
+          data: (allProjects) {
+            final ledProjects = allProjects
+                .where((p) => p.techLeads.any((tl) => tl.id == user?.id) && !p.archived)
+                .toList();
+
+            if (ledProjects.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  SizedBox(height: 80),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                    child: EmptyStateWidget(
+                      icon: Icons.folder_open_rounded,
+                      title: 'No led projects',
+                      subtitle: 'You are not leading any projects currently.',
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              itemCount: ledProjects.length,
             separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
             itemBuilder: (context, index) {
               final project = ledProjects[index];
@@ -96,6 +112,7 @@ class TechLeadProjectsScreen extends ConsumerWidget {
             },
           );
         },
+      ),
       ),
     );
   }

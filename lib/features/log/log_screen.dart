@@ -16,6 +16,7 @@ import '../../data/models/models.dart';
 import '../../data/repositories/log_repository.dart';
 import '../../data/repositories/attachment_repository.dart';
 import '../../core/api/api_exception.dart';
+import '../attendance/presentation/providers/attendance_provider.dart';
 
 class LogScreen extends ConsumerStatefulWidget {
   final DateTime date;
@@ -46,7 +47,12 @@ class _LogScreenState extends ConsumerState<LogScreen>
   late final AnimationController _savedAnimCtrl;
   late final Animation<double> _savedScale;
 
-  bool get _isEditable => widget.viewUserId == null && widget.date.isToday;
+  bool get _isEditable {
+    if (widget.viewUserId != null || !widget.date.isToday) return false;
+    final attStatus = ref.read(attendanceStatusProvider).valueOrNull;
+    if (attStatus != null && attStatus.isCompletedForToday) return false;
+    return true;
+  }
 
   @override
   void initState() {
@@ -109,7 +115,9 @@ class _LogScreenState extends ConsumerState<LogScreen>
       if (widget.initialProjectId != null &&
           widget.initialProjectId!.isNotEmpty &&
           widget.viewUserId == null &&
-          widget.date.isToday) {
+          widget.date.isToday &&
+          (ref.read(myProjectsProvider).valueOrNull ?? <ProjectModel>[])
+              .every((p) => p.id != widget.initialProjectId || p.isActive)) {
         final match = newEditors
             .where((ed) => ed.entry.projectId == widget.initialProjectId)
             .firstOrNull;
@@ -187,7 +195,7 @@ class _LogScreenState extends ConsumerState<LogScreen>
       return;
     }
 
-    final nextAvailable = myProjects.where((p) => !selectedIds.contains(p.id)).firstOrNull;
+    final nextAvailable = myProjects.where((p) => p.isActive && !selectedIds.contains(p.id)).firstOrNull;
 
     setState(() {
       _editors ??= [];
@@ -211,30 +219,98 @@ class _LogScreenState extends ConsumerState<LogScreen>
     });
   }
 
+  void _showInactiveDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Inactive Project'),
+        content: Text(message),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     final user = ref.read(currentUserProvider);
     if (user == null || !_isEditable || _editors == null) return;
 
-    bool hasValid = false;
-    bool hasInvalid = false;
+    // Block submit if a selected project is now inactive for this user
+    final projectsNow = ref.read(myProjectsProvider).valueOrNull ?? <ProjectModel>[];
     for (final e in _editors!) {
-      final hasProject = e.entry.projectId.isNotEmpty;
-      final hasDesc = e.tasks.any((t) => t.descCtrl.text.trim().isNotEmpty);
-      if (hasProject && hasDesc) {
-        hasValid = true;
-      } else if (hasProject || hasDesc) {
-        hasInvalid = true;
+      final inactive = projectsNow
+          .where((p) => p.id == e.entry.projectId && !p.isActive)
+          .firstOrNull;
+      if (inactive != null) {
+        _showInactiveDialog(
+            'You are inactive in "${inactive.name}" and can no longer log time for it. Please select another project.');
+        return;
       }
     }
 
-    if (!hasValid || hasInvalid) {
+    // Validate: All non-empty editors must have a selected project,
+    // and every task that has time or description must have both filled.
+    bool hasAtLeastOneCompleteTask = false;
+
+    for (final e in _editors!) {
+      final hasProject = e.entry.projectId.isNotEmpty;
+      final anyTaskHasData = e.tasks.any((t) =>
+          t.descCtrl.text.trim().isNotEmpty || t.timeCtrl.text.trim().isNotEmpty);
+
+      if (!hasProject && anyTaskHasData) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please select a project for all entries.'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+        return;
+      }
+
+      for (final t in e.tasks) {
+        final desc = t.descCtrl.text.trim();
+        final time = t.timeCtrl.text.trim();
+
+        if (desc.isEmpty && time.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Task description cannot be empty when time is entered.'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+          return;
+        }
+
+        if (desc.isNotEmpty && time.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Please enter time spent for each task.'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+          return;
+        }
+
+        if (desc.isNotEmpty && time.isNotEmpty && hasProject) {
+          hasAtLeastOneCompleteTask = true;
+        }
+      }
+    }
+
+    if (!hasAtLeastOneCompleteTask) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(
-              'Please ensure all entries have both a project and task description.'),
+          content: const Text('Please add at least one complete task with description and time.'),
           behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -298,6 +374,7 @@ class _LogScreenState extends ConsumerState<LogScreen>
 
     final repo = LogRepository();
     DailyLogModel? savedLog;
+    String? errorMessage;
 
     final validEditors = _editors!
         .where((e) =>
@@ -327,6 +404,8 @@ class _LogScreenState extends ConsumerState<LogScreen>
       if (result is ApiSuccess) {
         savedLog = result.data;
         _deletedEntryIds.clear();
+      } else if (result is ApiError) {
+        errorMessage = (result as ApiError).exception.message;
       }
     } else {
       final entriesData = validEditors.map((e) {
@@ -342,6 +421,8 @@ class _LogScreenState extends ConsumerState<LogScreen>
       final result = await repo.createLog(entries: entriesData);
       if (result is ApiSuccess) {
         savedLog = result.data;
+      } else if (result is ApiError) {
+        errorMessage = (result as ApiError).exception.message;
       }
     }
 
@@ -384,9 +465,14 @@ class _LogScreenState extends ConsumerState<LogScreen>
     } else {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save log progress.')),
-        );
+        if (errorMessage != null && errorMessage.contains('inactive')) {
+          _showInactiveDialog(errorMessage);
+          ref.invalidate(myProjectsProvider);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage ?? 'Failed to save log progress.')),
+          );
+        }
       }
     }
   }
@@ -888,9 +974,17 @@ class _LogScreenState extends ConsumerState<LogScreen>
   @override
   Widget build(BuildContext context) {
     final myProjects = ref.watch(myProjectsProvider);
+    final projectsList = myProjects.valueOrNull ?? <ProjectModel>[];
+
+    // Filter out editors whose assigned project is no longer in user's assigned projects
+    final visibleEditors = _editors?.where((ed) {
+      if (ed.entry.projectId.isEmpty) return true; // new unassigned entry
+      return projectsList.any((p) => p.id == ed.entry.projectId);
+    }).toList();
+
     double totalDayMins = 0;
-    if (_editors != null) {
-      for (final ed in _editors!) {
+    if (visibleEditors != null) {
+      for (final ed in visibleEditors) {
         double edMins = 0;
         for (final task in ed.tasks) {
           final raw = task.timeCtrl.text.trim();
@@ -1025,15 +1119,21 @@ class _LogScreenState extends ConsumerState<LogScreen>
             : Column(
                 children: [
                   Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.only(
-                          bottom: 24,
-                          top: AppSpacing.sm,
-                          left: AppSpacing.md,
-                          right: AppSpacing.md),
-                      physics: const BouncingScrollPhysics(),
-                      children: [
-                        if (_editors!.isEmpty)
+                    child: RefreshIndicator(
+                      onRefresh: () async {
+                        ref.invalidate(myProjectsProvider);
+                        ref.invalidate(todayLogProvider);
+                        await _loadLog();
+                      },
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                        padding: const EdgeInsets.only(
+                            bottom: 24,
+                            top: AppSpacing.sm,
+                            left: AppSpacing.md,
+                            right: AppSpacing.md),
+                        children: [
+                        if (visibleEditors == null || visibleEditors.isEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 60),
                             child: EmptyStateWidget(
@@ -1044,53 +1144,73 @@ class _LogScreenState extends ConsumerState<LogScreen>
                               iconColor: AppColors.textSecondary(context),
                             ),
                           ),
-                        for (int i = 0; i < _editors!.length; i++) ...[
-                          _EntrySection(
-                            key: ValueKey(_editors![i].entry.id),
-                            editor: _editors![i],
-                            index: i,
-                            totalCount: _editors!.length,
-                            projects: myProjects.valueOrNull ??
-                                <ProjectModel>[],
-                            usedProjectIds: _editors!
-                                .where((ed) =>
-                                    ed.entry.id != _editors![i].entry.id &&
-                                    ed.entry.projectId.isNotEmpty)
-                                .map((ed) => ed.entry.projectId)
-                                .toSet(),
-                            isEditable: _isEditable,
-
-
-                            onRemove: () => _removeEntry(i),
-                            onProjectSelected: (projectId) {
-                              setState(() {
-                                _editors![i] = _EntryEditor(
-                                  entry: _editors![i]
-                                      .entry
-                                      .copyWith(projectId: projectId),
-                                  tasks: _editors![i].tasks,
-                                  uploading: _editors![i].uploading,
-                                );
-                              });
-                            },
-                            onChanged: () => setState(() {}),
-
-                            onAddAttachment: () =>
-                                _showAttachmentPicker(i),
-                            onDeleteAttachment: (attachmentId) =>
-                                _deleteAttachment(i, attachmentId),
-                            onTapAttachment: (att) =>
-                                _openAttachment(att),
-                          ),
-
-                          const SizedBox(height: AppSpacing.md),
-                        ],
+                        if (visibleEditors != null)
+                          for (int i = 0; i < visibleEditors.length; i++) ...[
+                            _EntrySection(
+                              key: ValueKey(visibleEditors[i].entry.id),
+                              editor: visibleEditors[i],
+                              index: i,
+                              totalCount: visibleEditors.length,
+                              projects: projectsList,
+                              usedProjectIds: visibleEditors
+                                  .where((ed) =>
+                                      ed.entry.id != visibleEditors[i].entry.id &&
+                                      ed.entry.projectId.isNotEmpty)
+                                  .map((ed) => ed.entry.projectId)
+                                  .toSet(),
+                              isEditable: _isEditable &&
+                                  !projectsList.any((p) =>
+                                      p.id == visibleEditors[i].entry.projectId &&
+                                      !p.isActive),
+                              locked: _isEditable &&
+                                  projectsList.any((p) =>
+                                      p.id == visibleEditors[i].entry.projectId &&
+                                      !p.isActive),
+                              onRemove: () {
+                                final originalIndex = _editors?.indexOf(visibleEditors[i]) ?? -1;
+                                if (originalIndex != -1) {
+                                  _removeEntry(originalIndex);
+                                }
+                              },
+                              onProjectSelected: (projectId) {
+                                final originalIndex = _editors?.indexOf(visibleEditors[i]) ?? -1;
+                                if (originalIndex != -1) {
+                                  setState(() {
+                                    _editors![originalIndex] = _EntryEditor(
+                                      entry: _editors![originalIndex]
+                                          .entry
+                                          .copyWith(projectId: projectId),
+                                      tasks: _editors![originalIndex].tasks,
+                                      uploading: _editors![originalIndex].uploading,
+                                    );
+                                  });
+                                }
+                              },
+                              onChanged: () => setState(() {}),
+                              onAddAttachment: () {
+                                final originalIndex = _editors?.indexOf(visibleEditors[i]) ?? -1;
+                                if (originalIndex != -1) {
+                                  _showAttachmentPicker(originalIndex);
+                                }
+                              },
+                              onDeleteAttachment: (attachmentId) {
+                                final originalIndex = _editors?.indexOf(visibleEditors[i]) ?? -1;
+                                if (originalIndex != -1) {
+                                  _deleteAttachment(originalIndex, attachmentId);
+                                }
+                              },
+                              onTapAttachment: (att) =>
+                                  _openAttachment(att),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
 
 
                         // ── Add Another Project button ──────────────────
                         if (_isEditable)
                           _AddProjectButton(onTap: _addEntry),
                       ],
+                    ),
                     ),
                   ),
 
@@ -1335,6 +1455,7 @@ class _EntrySection extends StatefulWidget {
   final int totalCount;
   final List<dynamic> projects;
   final Set<String> usedProjectIds;
+  final bool locked;
   final bool isEditable;
   final VoidCallback onRemove;
   final ValueChanged<String> onProjectSelected;
@@ -1350,6 +1471,7 @@ class _EntrySection extends StatefulWidget {
     required this.totalCount,
     required this.projects,
     this.usedProjectIds = const {},
+    this.locked = false,
     required this.isEditable,
     required this.onRemove,
     required this.onProjectSelected,
@@ -1462,7 +1584,7 @@ class _EntrySectionState extends State<_EntrySection> {
                             ),
                             const SizedBox(width: 6),
                           ],
-                          if (widget.isEditable && widget.totalCount > 1)
+                          if ((widget.isEditable || widget.locked) && widget.totalCount > 1)
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: widget.onRemove,
@@ -2279,7 +2401,11 @@ class _ProjectDropdown extends StatelessWidget {
           ],
           Flexible(
             child: Text(
-              selected?.name ?? 'Select Project',
+              selected == null
+                  ? 'Select Project'
+                  : (selected.isActive == false
+                      ? '${selected.name} (Inactive)'
+                      : selected.name),
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: selectedId.isEmpty
                         ? AppColors.textSecondary(context)
@@ -2316,10 +2442,31 @@ class _ProjectDropdown extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               SheetHandle(title: 'Select Project'),
-              for (final p in projects) ...[
+              for (final p in [
+                ...projects.where((p) => p.isActive != false),
+                ...projects.where((p) => p.isActive == false),
+              ]) ...[
+                if (p.isActive == false &&
+                    projects.where((x) => x.isActive == false).first.id == p.id)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md, 12, AppSpacing.md, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'DISABLED PROJECTS',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppColors.textTertiary(context),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                  ),
                 Builder(
                   builder: (context) {
-                    final isUsed = usedProjectIds.contains(p.id) && p.id != selectedId;
+                    final isInactive = p.isActive == false;
+                    final isUsed = isInactive ||
+                        (usedProjectIds.contains(p.id) && p.id != selectedId);
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.md, vertical: 4),
@@ -2339,17 +2486,40 @@ class _ProjectDropdown extends StatelessWidget {
                                 : AppColors.projectColor(p.id),
                             size: 16),
                       ),
-                      title: Text(
-                        p.name,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: isUsed
-                                  ? AppColors.textTertiary(context)
-                                  : AppColors.textPrimary(context),
+                      title: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              p.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: isUsed
+                                        ? AppColors.textTertiary(context)
+                                        : AppColors.textPrimary(context),
+                                  ),
                             ),
+                          ),
+                          if (isInactive) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('Inactive',
+                                  style: TextStyle(
+                                      fontSize: 10, color: Colors.grey)),
+                            ),
+                          ],
+                        ],
                       ),
                       subtitle: isUsed
                           ? Text(
-                              'Already selected in another entry',
+                              isInactive
+                                  ? 'You are inactive in this project'
+                                  : 'Already selected in another entry',
                               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                     color: AppColors.textTertiary(context),
                                     fontSize: 11,
@@ -2360,6 +2530,7 @@ class _ProjectDropdown extends StatelessWidget {
                           ? Icon(Icons.check_rounded,
                               color: AppColors.accent, size: 20)
                           : null,
+                      enabled: !isInactive,
                       onTap: isUsed
                           ? null
                           : () {
@@ -2369,7 +2540,10 @@ class _ProjectDropdown extends StatelessWidget {
                     );
                   },
                 ),
-                if (projects.last.id != p.id)
+                if (p.id != ([
+                  ...projects.where((p) => p.isActive != false),
+                  ...projects.where((p) => p.isActive == false),
+                ]).last.id)
                   const AppDivider(indent: AppSpacing.md + 46),
               ],
               const SizedBox(height: AppSpacing.md),
