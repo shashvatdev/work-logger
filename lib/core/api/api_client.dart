@@ -11,7 +11,7 @@ class ApiClient {
 
   // ── Base URL ─────────────────────────────────────────────────────────────────
   // Change this to your deployed backend URL when going to production.
-  static const String baseUrl = 'http://192.168.1.52:5289/api/v1';
+  static const String baseUrl = 'https://worktracker.addonshareware.com/api/v1';
   // static const String baseUrl = 'http://192.168.1.51:5289/api/v1';
 
 
